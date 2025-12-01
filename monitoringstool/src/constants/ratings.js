@@ -1,0 +1,9 @@
+export const smileys = [
+  { key: "rood", label: "Helemaal niet leuk" },
+  { key: "beige", label: "Niet leuk" },
+  { key: "geel", label: "Gewoon" },
+  { key: "lichtgroen", label: "Leuk" },
+  { key: "groen", label: "Heel leuk" },
+];
+
+export const RATING_LABELS = Object.fromEntries(smileys.map(s => [s.key, s.label]));
