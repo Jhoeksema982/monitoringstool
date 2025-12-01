@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Validation
 import {
@@ -564,6 +566,21 @@ app.get('/api/health', async (req, res) => {
 });
 
 // 404 handler
+// Serve static build when in production or when explicitly enabled
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+if (process.env.SERVE_STATIC === 'true' || (process.env.NODE_ENV || 'development') === 'production') {
+  const staticPath = path.join(__dirname, 'dist');
+  app.use(express.static(staticPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    res.sendFile(path.join(staticPath, 'index.html'), (err) => {
+      if (err) next(err);
+    });
+  });
+}
+
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Endpoint not found' });
 });
@@ -622,4 +639,11 @@ async function startServer() {
   }
 }
 
-startServer();
+// Export the Express app so serverless wrappers can import it.
+export default app;
+
+// Only start the server when this file is executed directly (node server.js).
+// When imported by serverless platforms (Vercel), `startServer` will not be called.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  startServer();
+}
