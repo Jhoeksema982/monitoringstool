@@ -1,82 +1,124 @@
 import { getAccessToken } from './auth';
 
-const API_BASE_URL = 'https://umlsadvlxhrlushowmef.supabase.co';
+// Use the backend server API instead of Supabase REST API directly
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 class ApiService {
   async get(endpoint) {
-    const token = await getAccessToken();
+    const userToken = await getAccessToken();
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      headers: token ? { 'Authorization': `Bearer ${token}` } : undefined,
+      headers: {
+        Authorization: `Bearer ${userToken}`,
+      },
     });
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const text = await response.text();
+      throw new Error(`GET error ${response.status}: ${text}`);
     }
+
     return response.json();
   }
 
   async post(endpoint, data) {
-    const token = await getAccessToken();
+    const userToken = await getAccessToken();
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        Authorization: `Bearer ${userToken}`,
       },
       body: JSON.stringify(data),
     });
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const text = await response.text();
+      throw new Error(`POST error ${response.status}: ${text}`);
     }
+
     return response.json();
   }
 
-  async put(endpoint, data) {
-    const token = await getAccessToken();
+  async patch(endpoint, data) {
+    const userToken = await getAccessToken();
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'PUT',
+      method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        Authorization: `Bearer ${userToken}`,
       },
       body: JSON.stringify(data),
     });
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const text = await response.text();
+      throw new Error(`PATCH error ${response.status}: ${text}`);
     }
+
     return response.json();
   }
 
   async delete(endpoint) {
-    const token = await getAccessToken();
+    const userToken = await getAccessToken();
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'DELETE',
-      headers: token ? { 'Authorization': `Bearer ${token}` } : undefined,
+      headers: {
+        Authorization: `Bearer ${userToken}`,
+      },
     });
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const text = await response.text();
+      throw new Error(`DELETE error ${response.status}: ${text}`);
     }
+
     return response.json();
   }
 }
 
 const apiService = new ApiService();
 
-// Questions API methods
+/* -------------------------------------------------------
+   QUESTIONS API
+------------------------------------------------------- */
 export const questionsApi = {
+  // GET all questions
   getAll: () => apiService.get('/questions'),
+
+  // CREATE a question
   create: (question) => apiService.post('/questions', question),
-  update: (uuid, updates) => apiService.put(`/questions/${uuid}`, updates),
-  reorder: (order) => apiService.post('/questions/reorder', { order }),
-  delete: (id) => apiService.delete(`/questions/${id}`),
+
+  // UPDATE by UUID
+  update: (uuid, updates) =>
+    apiService.patch(`/questions/${uuid}`, updates),
+
+  // DELETE by UUID
+  delete: (uuid) =>
+    apiService.delete(`/questions/${uuid}`),
+
+  // REORDER
+  reorder: (order) =>
+    apiService.post('/questions/reorder', { order }),
 };
 
-// Responses API methods
+/* -------------------------------------------------------
+   RESPONSES API
+------------------------------------------------------- */
 export const responsesApi = {
+  // Submit survey response
   submit: (payload) => apiService.post('/responses', payload),
-  list: (params = {}) => {
-    const qs = new URLSearchParams(params).toString();
-    return apiService.get(`/responses${qs ? `?${qs}` : ''}`);
+
+  // List responses
+  list: ({ page = 1, limit = 10 } = {}) => {
+    const offset = (page - 1) * limit;
+    return apiService.get(`/responses?page=${page}&limit=${limit}`);
   },
+
+  // Stats endpoint
   stats: () => apiService.get('/responses/stats'),
 };
 
