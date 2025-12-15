@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import QuestionDisplay from "../components/QuestionDisplay";
+import StartScreen from "../components/StartScreen";
 import { questionsApi, responsesApi } from "../services/api";
 import { RATING_LABELS } from "../constants/ratings";
 
@@ -11,15 +12,18 @@ export default function Survey() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitted, setSubmitted] = useState(false);
+  const [mode, setMode] = useState('regular');
+  const [showStart, setShowStart] = useState(true);
+
 
   useEffect(() => {
-    loadQuestions();
-  }, []);
+    if (!showStart) loadQuestions();
+  }, [showStart, mode]);
 
   const loadQuestions = async () => {
     try {
       setLoading(true);
-      const response = await questionsApi.getAll();
+      const response = await questionsApi.getAll({ mode });
       // API returns { data: [...] } structure
       setQuestions(response.data || []);
       setError(null);
@@ -106,8 +110,12 @@ export default function Survey() {
   };
 
   return (
-    <section className="w-full max-w-5xl flex flex-col items-center gap-8 text-white text-center">
-      <h1 className="text-4xl sm:text-5xl font-bold">Vragenlijst</h1>
+    <>
+      {showStart ? (
+        <StartScreen onStart={(m) => { setMode(m); setShowStart(false); }} />
+      ) : (
+        <section className="w-full max-w-5xl flex flex-col items-center gap-8 text-white text-center">
+          <h1 className="text-4xl sm:text-5xl font-bold">Vragenlijst</h1>
 
       {submitError && (
         <div className="bg-red-600/80 text-white px-6 py-3 rounded-xl">
@@ -120,7 +128,9 @@ export default function Survey() {
         </div>
       )}
 
-      <div className="w-full flex flex-col items-center gap-10">{renderContent()}</div>
-    </section>
+          <div className="w-full flex flex-col items-center gap-10">{renderContent()}</div>
+        </section>
+      )}
+    </>
   );
 }

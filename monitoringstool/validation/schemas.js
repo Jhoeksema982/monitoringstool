@@ -47,6 +47,13 @@ export const questionSchema = Joi.object({
       'any.only': 'Status must be active, inactive, or archived'
     }),
     
+  mode: Joi.string()
+    .valid('regular', 'ouder_kind')
+    .default('regular')
+    .messages({
+      'any.only': 'Mode must be regular or ouder_kind'
+    }),
+    
   created_by: Joi.string()
     .trim()
     .max(100)
@@ -166,6 +173,13 @@ export const questionsQuerySchema = Joi.object({
       'any.only': 'Status must be active, inactive, or archived'
     }),
     
+  mode: Joi.string()
+    .valid('regular', 'ouder_kind')
+    .optional()
+    .messages({
+      'any.only': 'Mode must be regular or ouder_kind'
+    }),
+    
   priority: Joi.string()
     .valid('low', 'medium', 'high')
     .optional()
@@ -197,6 +211,13 @@ export const questionsQuerySchema = Joi.object({
     .default('ASC')
     .messages({
       'any.only': 'Sort order must be ASC or DESC'
+    })
+    ,
+  mode: Joi.string()
+    .valid('regular', 'ouder_kind')
+    .optional()
+    .messages({
+      'any.only': 'Mode must be regular or ouder_kind'
     })
 });
 

@@ -86,8 +86,11 @@ const apiService = new ApiService();
    QUESTIONS API
 ------------------------------------------------------- */
 export const questionsApi = {
-  // GET all questions
-  getAll: () => apiService.get('/questions'),
+  // GET all questions (optional params: page, limit, category, status, priority, search, sortBy, sortOrder, mode)
+  getAll: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return apiService.get(`/questions${qs ? '?' + qs : ''}`);
+  },
 
   // CREATE a question
   create: (question) => apiService.post('/questions', question),
@@ -113,13 +116,19 @@ export const responsesApi = {
   submit: (payload) => apiService.post('/responses', payload),
 
   // List responses
-  list: ({ page = 1, limit = 10 } = {}) => {
-    const offset = (page - 1) * limit;
-    return apiService.get(`/responses?page=${page}&limit=${limit}`);
+  list: ({ page = 1, limit = 10, question_uuid, mode } = {}) => {
+    const params = { page, limit };
+    if (question_uuid) params.question_uuid = question_uuid;
+    if (mode) params.mode = mode;
+    const qs = new URLSearchParams(params).toString();
+    return apiService.get(`/responses?${qs}`);
   },
 
   // Stats endpoint
-  stats: () => apiService.get('/responses/stats'),
+  stats: (opts = {}) => {
+    const qs = new URLSearchParams(opts).toString();
+    return apiService.get(`/responses/stats${qs ? '?' + qs : ''}`);
+  },
 };
 
 export default apiService;

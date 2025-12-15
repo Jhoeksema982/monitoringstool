@@ -30,6 +30,16 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
+// Runtime flag to detect whether the database has the `mode` column on `questions`.
+let hasModeColumn = false;
+
+// Helper to build the select string for questions depending on whether `mode` exists.
+function questionSelectFields() {
+  const base = ['uuid', 'title', 'description', 'category', 'priority', 'status', 'created_at', 'updated_at', 'created_by'];
+  if (hasModeColumn) base.splice(6, 0, 'mode'); // insert mode before created_at
+  return base.join(', ');
+}
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: {
@@ -161,6 +171,18 @@ async function testConnection() {
     }
 
     console.log('✅ Supabase connection successful');
+    // detect whether 'mode' column exists on questions table
+    try {
+      const { error: modeErr } = await supabase
+        .from('questions')
+        .select('mode')
+        .limit(1);
+      hasModeColumn = !modeErr;
+    } catch (e) {
+      hasModeColumn = false;
+    }
+
+    console.log('mode column present:', hasModeColumn);
     return true;
   } catch (e) {
     console.error('❌ Supabase connection error:', e.message);
@@ -175,16 +197,28 @@ app.get('/api/questions',
   validateQuery(questionsQuerySchema),
   async (req, res) => {
     try {
-      const { page, limit, category, status, priority, search, sortBy, sortOrder } = req.query;
+        const { page, limit, category, status, priority, search, sortBy, sortOrder, mode } = req.query;
       const offset = (page - 1) * limit;
 
-      let query = supabase
-        .from('questions')
-        .select('uuid, title, description, category, priority, status, created_at, updated_at, created_by', { count: 'exact' });
+        let query = supabase
+          .from('questions')
+          .select(questionSelectFields(), { count: 'exact' });
 
       if (category) query = query.eq('category', category);
       if (status) query = query.eq('status', status);
       if (priority) query = query.eq('priority', priority);
+      if (mode) {
+        if (hasModeColumn) {
+          query = query.eq('mode', mode);
+        } else {
+          // Column not present: treat legacy rows as `regular`.
+          if (mode !== 'regular') {
+            // No rows will match this non-regular mode when column is missing.
+            return res.json({ data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: page > 1 } });
+          }
+          // mode === 'regular' and column missing -> no filter needed (all legacy rows are regular)
+        }
+      }
       if (search) {
         const term = `%${search}%`;
         query = query.or(`title.ilike.${term},description.ilike.${term}`);
@@ -230,7 +264,7 @@ app.get('/api/questions/:uuid',
 
       const { data, error } = await supabase
         .from('questions')
-        .select('uuid, title, description, category, priority, status, created_at, updated_at, created_by')
+        .select(questionSelectFields())
         .eq('uuid', uuid)
         .single();
 
@@ -264,15 +298,21 @@ app.post('/api/questions',
         category: req.body.category || null,
         priority: req.body.priority || 'medium',
         status: req.body.status || 'active',
+        mode: req.body.mode || 'regular',
         created_by: req.body.created_by || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
+      // If the DB does not have the `mode` column, don't include it in the insert payload.
+      if (!hasModeColumn) {
+        delete questionData.mode;
+      }
+
       const { data, error } = await supabase
         .from('questions')
         .insert(questionData)
-        .select('uuid, title, description, category, priority, status, created_at, updated_at, created_by')
+        .select(questionSelectFields())
         .single();
 
       if (error) {
@@ -313,11 +353,16 @@ app.put('/api/questions/:uuid',
         return res.status(400).json({ error: 'No valid fields to update' });
       }
 
+      // If DB lacks `mode`, strip any mode updates
+      if (!hasModeColumn && Object.prototype.hasOwnProperty.call(updates, 'mode')) {
+        delete updates.mode;
+      }
+
       const { data, error } = await supabase
         .from('questions')
         .update(updates)
         .eq('uuid', uuid)
-        .select('uuid, title, description, category, priority, status, created_at, updated_at, created_by')
+        .select(questionSelectFields())
         .single();
 
       if (error && error.code === 'PGRST116') {
@@ -378,14 +423,37 @@ app.get('/api/responses',
   validateQuery(responsesQuerySchema),
   async (req, res) => {
     try {
-      const { page, limit, question_uuid } = req.query;
+      const { page, limit, question_uuid, mode } = req.query;
       const offset = (page - 1) * limit;
+
+      // If mode is provided and no specific question_uuid, resolve question uuids for that mode
+      let questionFilterUuids = null;
+      if (mode && !question_uuid) {
+        if (hasModeColumn) {
+          const { data: qData, error: qError } = await supabase
+            .from('questions')
+            .select('uuid')
+            .eq('mode', mode);
+          if (qError) throw qError;
+          questionFilterUuids = (qData || []).map(q => q.uuid);
+          if (!questionFilterUuids.length) {
+            return res.json({ data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: page > 1 } });
+          }
+        } else {
+          // Legacy DB without `mode` column: treat existing questions as `regular`.
+          if (mode !== 'regular') {
+            return res.json({ data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: page > 1 } });
+          }
+          // mode === 'regular' and column missing -> no filter (include all responses)
+        }
+      }
 
       let query = supabase
         .from('responses')
         .select('uuid, question_uuid, response_data, user_identifier, submission_uuid', { count: 'exact' });
 
       if (question_uuid) query = query.eq('question_uuid', question_uuid);
+      if (questionFilterUuids) query = query.in('question_uuid', questionFilterUuids);
 
       // If created_at was removed, order by uuid as a stable fallback
       query = query.order('uuid', { ascending: false }).range(offset, offset + limit - 1);
@@ -436,12 +504,36 @@ app.get('/api/responses',
 app.get('/api/responses/stats',
   authenticate,
   requireAdmin,
-  async (_req, res) => {
+  async (req, res) => {
     try {
+      const { mode } = req.query;
+
+      // If mode provided, limit by questions in that mode
+      let filterQuestionUuids = null;
+      if (mode) {
+        if (hasModeColumn) {
+          const { data: qData, error: qError } = await supabase
+            .from('questions')
+            .select('uuid')
+            .eq('mode', mode);
+          if (qError) throw qError;
+          filterQuestionUuids = (qData || []).map(q => q.uuid);
+          if (!filterQuestionUuids.length) return res.json({ data: [] });
+        } else {
+          // Legacy DB without mode column: only `regular` applies
+          if (mode !== 'regular') return res.json({ data: [] });
+          // mode === 'regular' and no column -> include all questions (no filter)
+        }
+      }
+
       // Fetch minimal fields and aggregate in app (portable and simple)
-      const { data, error } = await supabase
+      let query = supabase
         .from('responses')
         .select('question_uuid, response_data');
+
+      if (filterQuestionUuids) query = query.in('question_uuid', filterQuestionUuids);
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
