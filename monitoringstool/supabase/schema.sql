@@ -88,7 +88,8 @@ create table if not exists public.responses (
   question_uuid uuid not null references public.questions(uuid) on delete cascade,
   response_data jsonb not null,
   user_identifier text,
-  submission_uuid uuid
+  submission_uuid uuid,
+  survey_type varchar(50) not null default 'regular'
 );
 
 -- MIGRATIE: voeg submission_uuid toe als kolom mist (idempotent)
@@ -102,6 +103,20 @@ begin
       and column_name = 'submission_uuid'
   ) then
     alter table public.responses add column submission_uuid uuid;
+  end if;
+end $$;
+
+-- MIGRATIE: voeg survey_type toe als kolom mist (idempotent)
+do $$
+begin
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'responses'
+      and column_name = 'survey_type'
+  ) then
+    alter table public.responses add column survey_type varchar(50) not null default 'regular';
   end if;
 end $$;
 
@@ -123,3 +138,4 @@ end $$;
 -- Indexen voor responses
 create index if not exists responses_question_uuid_idx on public.responses (question_uuid);
 create index if not exists idx_responses_submission_uuid on public.responses (submission_uuid);
+create index if not exists idx_responses_survey_type on public.responses (survey_type);

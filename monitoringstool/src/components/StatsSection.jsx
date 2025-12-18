@@ -10,17 +10,35 @@ const COLOR_BY_VALUE = {
   groen: "#3ed474",
 };
 
+const TABS = [
+  { key: "regular", label: "Regulier" },
+  { key: "ouder_kind", label: "Ouder-kind dagen" },
+];
+
 export default function StatsSection({ statsData, statsLoading, statsError, onRefresh }) {
-  const hasData = Array.isArray(statsData) && statsData.length > 0;
+  const [activeTab, setActiveTab] = useState("regular");
   const chartsPerPage = 6;
   const [page, setPage] = useState(1);
 
-  const totalPages = Math.max(1, Math.ceil((statsData?.length || 0) / chartsPerPage));
+  // Filter stats by survey_type
+  const filteredStats = useMemo(() => {
+    if (!Array.isArray(statsData)) return [];
+    return statsData.filter((q) => q.survey_type === activeTab);
+  }, [statsData, activeTab]);
+
+  const hasData = filteredStats.length > 0;
+  const totalPages = Math.max(1, Math.ceil((filteredStats?.length || 0) / chartsPerPage));
+  
   const paginatedData = useMemo(() => {
     if (!hasData) return [];
     const start = (page - 1) * chartsPerPage;
-    return statsData.slice(start, start + chartsPerPage);
-  }, [chartsPerPage, hasData, page, statsData]);
+    return filteredStats.slice(start, start + chartsPerPage);
+  }, [chartsPerPage, hasData, page, filteredStats]);
+
+  // Reset page when tab changes
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab]);
 
   useEffect(() => {
     if (page > totalPages) {
@@ -39,6 +57,23 @@ export default function StatsSection({ statsData, statsLoading, statsError, onRe
         >
           {statsLoading ? "Vernieuwen..." : "Vernieuw"}
         </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-4">
+        {TABS.map((tab) => (
+          <button
+            key={tab.key}
+            className={`px-4 py-2 rounded-lg font-semibold transition ${
+              activeTab === tab.key
+                ? "bg-yellow-400 text-teal-900"
+                : "bg-teal-600 hover:bg-teal-500 text-white"
+            }`}
+            onClick={() => setActiveTab(tab.key)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {statsError && (

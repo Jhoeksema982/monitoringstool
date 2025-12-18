@@ -258,6 +258,12 @@ export const questionResponseSchema = Joi.object({
 // Batch responses schema
 export const batchQuestionResponsesSchema = Joi.object({
   responses: Joi.array().items(questionResponseSchema).min(1).required(),
+  survey_type: Joi.string()
+    .valid('regular', 'ouder_kind')
+    .default('regular')
+    .messages({
+      'any.only': 'Survey type must be regular or ouder_kind'
+    }),
 });
 
 // Validation middleware factory

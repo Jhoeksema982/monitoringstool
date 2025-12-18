@@ -423,37 +423,14 @@ app.get('/api/responses',
   validateQuery(responsesQuerySchema),
   async (req, res) => {
     try {
-      const { page, limit, question_uuid, mode } = req.query;
+      const { page, limit, question_uuid } = req.query;
       const offset = (page - 1) * limit;
-
-      // If mode is provided and no specific question_uuid, resolve question uuids for that mode
-      let questionFilterUuids = null;
-      if (mode && !question_uuid) {
-        if (hasModeColumn) {
-          const { data: qData, error: qError } = await supabase
-            .from('questions')
-            .select('uuid')
-            .eq('mode', mode);
-          if (qError) throw qError;
-          questionFilterUuids = (qData || []).map(q => q.uuid);
-          if (!questionFilterUuids.length) {
-            return res.json({ data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: page > 1 } });
-          }
-        } else {
-          // Legacy DB without `mode` column: treat existing questions as `regular`.
-          if (mode !== 'regular') {
-            return res.json({ data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: page > 1 } });
-          }
-          // mode === 'regular' and column missing -> no filter (include all responses)
-        }
-      }
 
       let query = supabase
         .from('responses')
-        .select('uuid, question_uuid, response_data, user_identifier, submission_uuid', { count: 'exact' });
+        .select('uuid, question_uuid, response_data, user_identifier, submission_uuid, survey_type', { count: 'exact' });
 
       if (question_uuid) query = query.eq('question_uuid', question_uuid);
-      if (questionFilterUuids) query = query.in('question_uuid', questionFilterUuids);
 
       // If created_at was removed, order by uuid as a stable fallback
       query = query.order('uuid', { ascending: false }).range(offset, offset + limit - 1);
@@ -500,58 +477,39 @@ app.get('/api/responses',
   }
 );
 
-// Responses stats (aggregate per question and per response value)
+// Responses stats (aggregate per question and per response value, grouped by survey_type)
 app.get('/api/responses/stats',
   authenticate,
   requireAdmin,
   async (req, res) => {
     try {
-      const { mode } = req.query;
-
-      // If mode provided, limit by questions in that mode
-      let filterQuestionUuids = null;
-      if (mode) {
-        if (hasModeColumn) {
-          const { data: qData, error: qError } = await supabase
-            .from('questions')
-            .select('uuid')
-            .eq('mode', mode);
-          if (qError) throw qError;
-          filterQuestionUuids = (qData || []).map(q => q.uuid);
-          if (!filterQuestionUuids.length) return res.json({ data: [] });
-        } else {
-          // Legacy DB without mode column: only `regular` applies
-          if (mode !== 'regular') return res.json({ data: [] });
-          // mode === 'regular' and no column -> include all questions (no filter)
-        }
-      }
-
-      // Fetch minimal fields and aggregate in app (portable and simple)
+      // Fetch all responses with survey_type
       let query = supabase
         .from('responses')
-        .select('question_uuid, response_data');
-
-      if (filterQuestionUuids) query = query.in('question_uuid', filterQuestionUuids);
+        .select('question_uuid, response_data, survey_type');
 
       const { data, error } = await query;
 
       if (error) throw error;
 
-      const byQuestion = new Map();
+      // Group by question AND survey_type
+      const byQuestionAndType = new Map();
       for (const row of data || []) {
         const qid = row.question_uuid;
+        const sType = row.survey_type || 'regular';
         const value = (row.response_data && (row.response_data.value || row.response_data.label)) || null;
         if (!qid || !value) continue;
-        if (!byQuestion.has(qid)) {
-          byQuestion.set(qid, { total: 0, counts: {} });
+        const key = `${qid}__${sType}`;
+        if (!byQuestionAndType.has(key)) {
+          byQuestionAndType.set(key, { question_uuid: qid, survey_type: sType, total: 0, counts: {} });
         }
-        const bucket = byQuestion.get(qid);
+        const bucket = byQuestionAndType.get(key);
         bucket.total += 1;
         bucket.counts[value] = (bucket.counts[value] || 0) + 1;
       }
 
       // enrich with question titles
-      const questionUuids = Array.from(byQuestion.keys());
+      const questionUuids = Array.from(new Set([...byQuestionAndType.values()].map(b => b.question_uuid)));
       let titlesByUuid = {};
       if (questionUuids.length) {
         const { data: qData, error: qError } = await supabase
@@ -562,11 +520,12 @@ app.get('/api/responses/stats',
         titlesByUuid = Object.fromEntries((qData || []).map(q => [q.uuid, q.title]));
       }
 
-      const results = questionUuids.map((qid) => ({
-        question_uuid: qid,
-        question_title: titlesByUuid[qid] || qid,
-        total: byQuestion.get(qid).total,
-        counts: byQuestion.get(qid).counts
+      const results = [...byQuestionAndType.values()].map((bucket) => ({
+        question_uuid: bucket.question_uuid,
+        question_title: titlesByUuid[bucket.question_uuid] || bucket.question_uuid,
+        survey_type: bucket.survey_type,
+        total: bucket.total,
+        counts: bucket.counts
       }));
 
       res.json({ data: results });
@@ -586,12 +545,14 @@ app.post('/api/responses',
   async (req, res) => {
     try {
       const submissionUuid = uuidv4();
+      const surveyType = req.body.survey_type || 'regular';
       const records = (req.body.responses || []).map(r => ({
         uuid: uuidv4(),
         submission_uuid: submissionUuid,
         question_uuid: r.question_uuid,
         response_data: r.response_data,
         user_identifier: r.user_identifier || null,
+        survey_type: surveyType,
       }));
 
       const { error } = await supabase

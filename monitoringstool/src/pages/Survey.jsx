@@ -8,28 +8,29 @@ export default function Survey() {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [answers, setAnswers] = useState({}); // { [question_uuid]: 'rood' | 'beige' | ... }
+
+  const [answers, setAnswers] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitted, setSubmitted] = useState(false);
-  const [mode, setMode] = useState('regular');
-  const [showStart, setShowStart] = useState(true);
 
+  // 👇 OKD of regulier (1x gekozen)
+  const [mode, setMode] = useState("regular");
+  const [showStart, setShowStart] = useState(true);
 
   useEffect(() => {
     if (!showStart) loadQuestions();
-  }, [showStart, mode]);
+  }, [showStart]);
 
   const loadQuestions = async () => {
     try {
       setLoading(true);
-      const response = await questionsApi.getAll({ mode });
-      // API returns { data: [...] } structure
+      const response = await questionsApi.getAll(); // 👈 zelfde vragen
       setQuestions(response.data || []);
       setError(null);
     } catch (err) {
-      setError('Failed to load questions');
-      console.error('Error loading questions:', err);
+      console.error(err);
+      setError("Vragen konden niet geladen worden.");
     } finally {
       setLoading(false);
     }
@@ -41,10 +42,10 @@ export default function Survey() {
 
   const handleSubmit = async () => {
     setSubmitError(null);
-    setSubmitted(false);
+
     const unanswered = questions.filter((q) => !answers[q.uuid]);
     if (unanswered.length > 0) {
-      setSubmitError('Beantwoord alle vragen voordat je verstuurt.');
+      setSubmitError("Beantwoord alle vragen voordat je verstuurt.");
       return;
     }
 
@@ -58,20 +59,51 @@ export default function Survey() {
 
     try {
       setSubmitting(true);
-      await responsesApi.submit({ responses });
+
+      // 👇 survey_type wordt hier meegestuurd
+      await responsesApi.submit({
+        survey_type: mode, // 'okd' of 'regular'
+        responses,
+      });
+
       setSubmitted(true);
     } catch (e) {
-      console.error('Error submitting responses:', e);
-      setSubmitError('Versturen mislukt. Probeer het opnieuw.');
+      console.error(e);
+      setSubmitError("Versturen mislukt. Probeer het opnieuw.");
     } finally {
       setSubmitting(false);
     }
   };
 
   const renderContent = () => {
-    if (loading) {
-      return <p className="text-lg">Loading...</p>;
+    if (submitted) {
+      return (
+        <div className="flex flex-col items-center justify-center text-center p-6 min-h-[calc(100vh-96px)]">
+          <img
+            src="/src/assets/images/groen.avif"
+            alt="Bedankt"
+            className="w-40 mx-auto mb-6 rounded-lg"
+          />
+          <h2 className="text-4xl font-bold mb-4">
+            Bedankt voor uw deelname!
+          </h2>
+          <p className="mb-6 text-xl text-gray-200">
+            Uw antwoorden zijn succesvol verstuurd.
+          </p>
+          <button
+            className="bg-yellow-400 text-teal-900 font-semibold px-6 py-3 rounded-full hover:bg-yellow-300 transition"
+            onClick={() => {
+              setSubmitted(false);
+              setAnswers({});
+            }}
+          >
+            Nieuwe vragenlijst invullen
+          </button>
+        </div>
+      );
     }
+
+    if (loading) return <p>Loading...</p>;
 
     if (error) {
       return (
@@ -82,7 +114,7 @@ export default function Survey() {
     }
 
     if (questions.length === 0) {
-      return <p className="text-lg">Er zijn nog geen vragen toegevoegd.</p>;
+      return <p>Er zijn nog geen vragen toegevoegd.</p>;
     }
 
     return (
@@ -112,23 +144,27 @@ export default function Survey() {
   return (
     <>
       {showStart ? (
-        <StartScreen onStart={(m) => { setMode(m); setShowStart(false); }} />
+        <StartScreen
+          onStart={(selectedMode) => {
+            setMode(selectedMode); // okd / regular
+            setShowStart(false);
+          }}
+        />
       ) : (
         <section className="w-full max-w-5xl flex flex-col items-center gap-8 text-white text-center">
-          <h1 className="text-4xl sm:text-5xl font-bold">Vragenlijst</h1>
+          <h1 className="text-4xl sm:text-5xl font-bold">
+            Vragenlijst
+          </h1>
 
-      {submitError && (
-        <div className="bg-red-600/80 text-white px-6 py-3 rounded-xl">
-          {submitError}
-        </div>
-      )}
-      {submitted && (
-        <div className="bg-green-600/90 text-white px-6 py-3 rounded-xl">
-          Bedankt! Je antwoorden zijn verstuurd.
-        </div>
-      )}
+          {submitError && (
+            <div className="bg-red-600/80 text-white px-6 py-3 rounded-xl">
+              {submitError}
+            </div>
+          )}
 
-          <div className="w-full flex flex-col items-center gap-10">{renderContent()}</div>
+          <div className="w-full flex flex-col items-center gap-10">
+            {renderContent()}
+          </div>
         </section>
       )}
     </>
