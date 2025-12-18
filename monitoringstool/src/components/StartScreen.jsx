@@ -4,7 +4,7 @@ const StartScreen = ({ onStart }) => {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-teal-800 text-white p-6">
       <div className="max-w-2xl w-full text-center">
-        <img src="/src/assets/images/blank.avif" alt="Start" className="w-40 mx-auto mb-6 rounded-lg" />
+        <img src="/images/blank.avif" alt="Start" className="w-40 mx-auto mb-6 rounded-lg" />
         <h1 className="text-2xl font-bold mb-4">Hallo! Kies wat voor bezoek dit is</h1>
         <p className="mb-6 text-gray-200">Kies hieronder of het gaat om een regulier bezoek of een ouder-kind dag.</p>
 
@@ -25,8 +25,8 @@ const StartScreen = ({ onStart }) => {
         </div>
 
         <div className="flex gap-8 mt-12 justify-center">
-          <img src="/src/assets/images/geel.avif" alt="Gezinsbenadering" className="h-10" />
-          <img src="/src/assets/images/groen.avif" alt="Hanze" className="h-10" />
+          <img src="/images/geel.avif" alt="Gezinsbenadering" className="h-10" />
+          <img src="/images/groen.avif" alt="Hanze" className="h-10" />
         </div>
       </div>
     </div>

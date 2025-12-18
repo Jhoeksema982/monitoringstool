@@ -80,7 +80,7 @@ export default function Survey() {
       return (
         <div className="flex flex-col items-center justify-center text-center p-6 min-h-[calc(100vh-96px)]">
           <img
-            src="/src/assets/images/groen.avif"
+            src="/images/groen.avif"
             alt="Bedankt"
             className="w-40 mx-auto mb-6 rounded-lg"
           />
