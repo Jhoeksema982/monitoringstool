@@ -4,6 +4,7 @@ import ConsentQuestion from "../components/ConsentQuestion";
 import StartScreen from "../components/StartScreen";
 import { questionsApi, responsesApi } from "../services/api";
 import { RATING_LABELS } from "../constants/ratings";
+import { CONSENT_QUESTION_UUID } from "../constants/consent";
 
 export default function Survey() {
   const [questions, setQuestions] = useState([]);
@@ -29,9 +30,8 @@ export default function Survey() {
       setLoading(true);
       const response = await questionsApi.getAll(); // 👈 zelfde vragen
       // Filter out consent question (it's shown separately)
-      const consentUuid = "00000000-0000-0000-0000-000000000001";
       const filteredQuestions = (response.data || []).filter(
-        (q) => q.uuid !== consentUuid
+        (q) => q.uuid !== CONSENT_QUESTION_UUID
       );
       setQuestions(filteredQuestions);
       setError(null);
@@ -69,7 +69,7 @@ export default function Survey() {
 
     // Create consent response
     const consentResponse = {
-      question_uuid: "00000000-0000-0000-0000-000000000001", // Consent question UUID
+      question_uuid: CONSENT_QUESTION_UUID,
       response_data: {
         value: consent,
         label: consent === "ja" ? "Ja" : "Nee",

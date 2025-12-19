@@ -7,6 +7,7 @@ import StatsSection from "../components/StatsSection";
 import ResponsesTable from "../components/ResponsesTable";
 import { questionsApi, responsesApi } from "../services/api";
 import { getSession, signInWithEmailPassword, signOut } from "../services/auth";
+import { CONSENT_QUESTION_UUID } from "../constants/consent";
 
 function SortableQuestionItem({ question, onDelete, onEditClick, onSaveEdit, isEditing, editForm, setEditForm }) {
   const { listeners, setNodeRef, transform, transition, setActivatorNodeRef } = useSortable({
@@ -219,7 +220,11 @@ export default function Admin() {
       setLoading(true);
       const response = await questionsApi.getAll();
       // API returns { data: [...] } structure
-      setQuestions(response.data || []);
+      // Filter out consent question (should not be editable in admin)
+      const filteredQuestions = (response.data || []).filter(
+        (q) => q.uuid !== CONSENT_QUESTION_UUID
+      );
+      setQuestions(filteredQuestions);
       setError(null);
     } catch (err) {
       setError('Failed to load questions');

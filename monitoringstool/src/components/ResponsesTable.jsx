@@ -1,3 +1,5 @@
+import { CONSENT_QUESTION_UUID } from "../constants/consent";
+
 const SURVEY_TYPES = [
   { key: "regular", label: "Regulier" },
   { key: "ouder_kind", label: "Ouder-kind dagen" },
@@ -18,9 +20,11 @@ export default function ResponsesTable({
 }) {
   const hasResponses = Array.isArray(responses) && responses.length > 0;
 
-  // Group responses by survey_type
+  // Group responses by survey_type and filter out consent question
   const responsesByType = SURVEY_TYPES.reduce((acc, type) => {
-    acc[type.key] = responses.filter((r) => r.survey_type === type.key);
+    acc[type.key] = responses.filter(
+      (r) => r.survey_type === type.key && r.question_uuid !== CONSENT_QUESTION_UUID
+    );
     return acc;
   }, {});
 

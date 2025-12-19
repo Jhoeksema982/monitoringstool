@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
 import { smileys } from "../constants/ratings";
+import { CONSENT_QUESTION_UUID } from "../constants/consent";
 
 const COLOR_BY_VALUE = {
   rood: "#f05c5c",
@@ -20,10 +21,12 @@ export default function StatsSection({ statsData, statsLoading, statsError, onRe
   const chartsPerPage = 6;
   const [page, setPage] = useState(1);
 
-  // Filter stats by survey_type
+  // Filter stats by survey_type and exclude consent question
   const filteredStats = useMemo(() => {
     if (!Array.isArray(statsData)) return [];
-    return statsData.filter((q) => q.survey_type === activeTab);
+    return statsData.filter(
+      (q) => q.survey_type === activeTab && q.question_uuid !== CONSENT_QUESTION_UUID
+    );
   }, [statsData, activeTab]);
 
   const hasData = filteredStats.length > 0;
