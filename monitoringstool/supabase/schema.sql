@@ -1,3 +1,10 @@
+-- =========================
+-- Supabase schema (idempotent & order-safe)
+-- Dit script is veilig om meerdere keren te draaien en voert conditionele
+-- migraties uit als onderdelen ontbreken.
+-- =========================
+
+-- Extensions
 create extension if not exists "pgcrypto";
 
 -- Enums (veilig aanmaken)
@@ -88,8 +95,7 @@ create table if not exists public.responses (
   question_uuid uuid not null references public.questions(uuid) on delete cascade,
   response_data jsonb not null,
   user_identifier text,
-  submission_uuid uuid,
-  survey_type varchar(50) not null default 'regular'
+  submission_uuid uuid
 );
 
 -- MIGRATIE: voeg submission_uuid toe als kolom mist (idempotent)
@@ -103,20 +109,6 @@ begin
       and column_name = 'submission_uuid'
   ) then
     alter table public.responses add column submission_uuid uuid;
-  end if;
-end $$;
-
--- MIGRATIE: voeg survey_type toe als kolom mist (idempotent)
-do $$
-begin
-  if not exists (
-    select 1
-    from information_schema.columns
-    where table_schema = 'public'
-      and table_name = 'responses'
-      and column_name = 'survey_type'
-  ) then
-    alter table public.responses add column survey_type varchar(50) not null default 'regular';
   end if;
 end $$;
 
@@ -138,4 +130,46 @@ end $$;
 -- Indexen voor responses
 create index if not exists responses_question_uuid_idx on public.responses (question_uuid);
 create index if not exists idx_responses_submission_uuid on public.responses (submission_uuid);
-create index if not exists idx_responses_survey_type on public.responses (survey_type);
+
+
+ALTER TABLE public.responses 
+ADD COLUMN IF NOT EXISTS survey_type varchar(50) NOT NULL DEFAULT 'regular';
+
+CREATE INDEX IF NOT EXISTS idx_responses_survey_type 
+ON public.responses (survey_type);
+UPDATE public.responses 
+SET survey_type = 'regular' 
+WHERE survey_type IS NULL OR survey_type = '';
+
+
+-- Maak consent vraag aan als deze nog niet bestaat
+do $$
+declare
+  consent_uuid uuid := '00000000-0000-0000-0000-000000000001';
+begin
+  if not exists (
+    select 1 from public.questions where uuid = consent_uuid
+  ) then
+    insert into public.questions (
+      uuid,
+      title,
+      description,
+      category,
+      priority,
+      status,
+      mode,
+      created_at,
+      updated_at
+    ) values (
+      consent_uuid,
+      'Geven de ouders/verzorgers toestemming voor het invullen van deze vragenlijst?',
+      'Selecteer hieronder uw antwoord',
+      'consent',
+      'high',
+      'active',
+      'regular',
+      now(),
+      now()
+    );
+  end if;
+end $$;

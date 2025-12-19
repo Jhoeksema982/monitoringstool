@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import QuestionDisplay from "../components/QuestionDisplay";
+import ConsentQuestion from "../components/ConsentQuestion";
 import StartScreen from "../components/StartScreen";
 import { questionsApi, responsesApi } from "../services/api";
 import { RATING_LABELS } from "../constants/ratings";
@@ -10,6 +11,7 @@ export default function Survey() {
   const [error, setError] = useState(null);
 
   const [answers, setAnswers] = useState({});
+  const [consent, setConsent] = useState(null); // null, "ja", of "nee"
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitted, setSubmitted] = useState(false);
@@ -26,7 +28,12 @@ export default function Survey() {
     try {
       setLoading(true);
       const response = await questionsApi.getAll(); // 👈 zelfde vragen
-      setQuestions(response.data || []);
+      // Filter out consent question (it's shown separately)
+      const consentUuid = "00000000-0000-0000-0000-000000000001";
+      const filteredQuestions = (response.data || []).filter(
+        (q) => q.uuid !== consentUuid
+      );
+      setQuestions(filteredQuestions);
       setError(null);
     } catch (err) {
       console.error(err);
@@ -43,26 +50,49 @@ export default function Survey() {
   const handleSubmit = async () => {
     setSubmitError(null);
 
+    // Check consent first
+    if (!consent) {
+      setSubmitError("Beantwoord eerst de toestemmingsvraag.");
+      return;
+    }
+
+    if (consent === "nee") {
+      setSubmitError("Zonder toestemming kunnen we de vragenlijst niet invullen.");
+      return;
+    }
+
     const unanswered = questions.filter((q) => !answers[q.uuid]);
     if (unanswered.length > 0) {
       setSubmitError("Beantwoord alle vragen voordat je verstuurt.");
       return;
     }
 
-    const responses = questions.map((q) => ({
-      question_uuid: q.uuid,
+    // Create consent response
+    const consentResponse = {
+      question_uuid: "00000000-0000-0000-0000-000000000001", // Consent question UUID
       response_data: {
-        value: answers[q.uuid],
-        label: RATING_LABELS[answers[q.uuid]] || answers[q.uuid],
+        value: consent,
+        label: consent === "ja" ? "Ja" : "Nee",
       },
-    }));
+    };
+
+    const responses = [
+      consentResponse,
+      ...questions.map((q) => ({
+        question_uuid: q.uuid,
+        response_data: {
+          value: answers[q.uuid],
+          label: RATING_LABELS[answers[q.uuid]] || answers[q.uuid],
+        },
+      })),
+    ];
 
     try {
       setSubmitting(true);
 
       // 👇 survey_type wordt hier meegestuurd
       await responsesApi.submit({
-        survey_type: mode, // 'okd' of 'regular'
+        survey_type: mode, // 'ouder_kind' of 'regular'
         responses,
       });
 
@@ -95,6 +125,7 @@ export default function Survey() {
             onClick={() => {
               setSubmitted(false);
               setAnswers({});
+              setConsent(null);
             }}
           >
             Nieuwe vragenlijst invullen
@@ -113,6 +144,50 @@ export default function Survey() {
       );
     }
 
+    // Show consent question first
+    if (!consent) {
+      return (
+        <>
+          <ConsentQuestion
+            value={consent}
+            onChange={(val) => {
+              setConsent(val);
+              if (val === "nee") {
+                setSubmitError("Zonder toestemming kunnen we de vragenlijst niet invullen.");
+              } else {
+                setSubmitError(null);
+              }
+            }}
+          />
+          {consent === "nee" && (
+            <div className="bg-red-600/80 text-white px-6 py-3 rounded-xl">
+              Zonder toestemming kunnen we de vragenlijst niet invullen.
+            </div>
+          )}
+        </>
+      );
+    }
+
+    if (consent === "nee") {
+      return (
+        <div className="flex flex-col items-center justify-center text-center p-6">
+          <div className="bg-red-600/80 text-white px-6 py-4 rounded-xl mb-4">
+            <h2 className="text-2xl font-bold mb-2">Geen toestemming</h2>
+            <p>Zonder toestemming van de ouders/verzorgers kunnen we de vragenlijst niet invullen.</p>
+          </div>
+          <button
+            className="bg-yellow-400 text-teal-900 font-semibold px-6 py-3 rounded-full hover:bg-yellow-300 transition"
+            onClick={() => {
+              setConsent(null);
+              setAnswers({});
+            }}
+          >
+            Opnieuw proberen
+          </button>
+        </div>
+      );
+    }
+
     if (questions.length === 0) {
       return <p>Er zijn nog geen vragen toegevoegd.</p>;
     }
@@ -123,7 +198,7 @@ export default function Survey() {
           <QuestionDisplay
             key={q.uuid}
             question={q}
-            index={index + 1}
+            index={index + 2} // Start from 2 because consent is question 1
             name={`smiley-${q.uuid}`}
             value={answers[q.uuid] || null}
             onChange={(val) => handleChange(q.uuid, val)}
