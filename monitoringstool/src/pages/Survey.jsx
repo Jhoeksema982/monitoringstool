@@ -5,6 +5,7 @@ import StartScreen from "../components/StartScreen";
 import { questionsApi, responsesApi } from "../services/api";
 import { RATING_LABELS } from "../constants/ratings";
 import { CONSENT_QUESTION_UUID } from "../constants/consent";
+import groenImage from "../assets/images/groen.avif"; //
 
 export default function Survey() {
   const [questions, setQuestions] = useState([]);
@@ -12,12 +13,13 @@ export default function Survey() {
   const [error, setError] = useState(null);
 
   const [answers, setAnswers] = useState({});
-  const [consent, setConsent] = useState(null); // null, "ja", of "nee"
+  const [consent, setConsent] = useState(null); 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitted, setSubmitted] = useState(false);
 
-  // 👇 OKD of regulier (1x gekozen)
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+
   const [mode, setMode] = useState("regular");
   const [showStart, setShowStart] = useState(true);
 
@@ -28,8 +30,7 @@ export default function Survey() {
   const loadQuestions = async () => {
     try {
       setLoading(true);
-      const response = await questionsApi.getAll(); // 👈 zelfde vragen
-      // Filter out consent question (it's shown separately)
+      const response = await questionsApi.getAll();
       const filteredQuestions = (response.data || []).filter(
         (q) => q.uuid !== CONSENT_QUESTION_UUID
       );
@@ -47,10 +48,19 @@ export default function Survey() {
     setAnswers((prev) => ({ ...prev, [questionUuid]: value }));
   };
 
+  const handleNext = () => {
+    setCurrentQuestionIndex((prev) => prev + 1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handlePrevious = () => {
+    setCurrentQuestionIndex((prev) => prev - 1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const handleSubmit = async () => {
     setSubmitError(null);
 
-    // Check consent first
     if (!consent) {
       setSubmitError("Beantwoord eerst de toestemmingsvraag.");
       return;
@@ -67,17 +77,14 @@ export default function Survey() {
       return;
     }
 
-    // Create consent response
-    const consentResponse = {
-      question_uuid: CONSENT_QUESTION_UUID,
-      response_data: {
-        value: consent,
-        label: consent === "ja" ? "Ja" : "Nee",
-      },
-    };
-
     const responses = [
-      consentResponse,
+      {
+        question_uuid: CONSENT_QUESTION_UUID,
+        response_data: {
+          value: consent,
+          label: consent === "ja" ? "Ja" : "Nee",
+        },
+      },
       ...questions.map((q) => ({
         question_uuid: q.uuid,
         response_data: {
@@ -89,13 +96,10 @@ export default function Survey() {
 
     try {
       setSubmitting(true);
-
-      // 👇 survey_type wordt hier meegestuurd
       await responsesApi.submit({
-        survey_type: mode, // 'ouder_kind' of 'regular'
+        survey_type: mode,
         responses,
       });
-
       setSubmitted(true);
     } catch (e) {
       console.error(e);
@@ -108,17 +112,19 @@ export default function Survey() {
   const renderContent = () => {
     if (submitted) {
       return (
-        <div className="flex flex-col items-center justify-center text-center p-6 min-h-[calc(100vh-96px)]">
+        // min-h-[calc...] weggehaald om verspringing te voorkomen
+        <div className="flex flex-col items-center text-center p-6 animate-in fade-in zoom-in duration-300">
           <img
-            src="/images/groen.avif"
+            src={groenImage}
             alt="Bedankt"
-            className="w-40 mx-auto mb-6 rounded-lg"
+            // mt-8 toegevoegd om hem iets lager te zetten
+            className="w-40 mx-auto mb-6 rounded-lg mt-8"
           />
           <h2 className="text-4xl font-bold mb-4">
-            Bedankt voor uw deelname!
+            Bedankt voor het invullen!
           </h2>
           <p className="mb-6 text-xl text-gray-200">
-            Uw antwoorden zijn succesvol verstuurd.
+            Je antwoorden zijn goed ontvangen.
           </p>
           <button
             className="bg-yellow-400 text-teal-900 font-semibold px-6 py-3 rounded-full hover:bg-yellow-300 transition"
@@ -126,15 +132,16 @@ export default function Survey() {
               setSubmitted(false);
               setAnswers({});
               setConsent(null);
+              setCurrentQuestionIndex(0);
             }}
           >
-            Nieuwe vragenlijst invullen
+            Nieuwe vragenlijst
           </button>
         </div>
       );
     }
 
-    if (loading) return <p>Loading...</p>;
+    if (loading) return <p>Laden...</p>;
 
     if (error) {
       return (
@@ -144,7 +151,7 @@ export default function Survey() {
       );
     }
 
-    // Show consent question first
+    // STAP 0: TOESTEMMING
     if (!consent) {
       return (
         <>
@@ -156,6 +163,7 @@ export default function Survey() {
                 setSubmitError("Zonder toestemming kunnen we de vragenlijst niet invullen.");
               } else {
                 setSubmitError(null);
+                setCurrentQuestionIndex(0);
               }
             }}
           />
@@ -173,7 +181,7 @@ export default function Survey() {
         <div className="flex flex-col items-center justify-center text-center p-6">
           <div className="bg-red-600/80 text-white px-6 py-4 rounded-xl mb-4">
             <h2 className="text-2xl font-bold mb-2">Geen toestemming</h2>
-            <p>Zonder toestemming van de ouders/verzorgers kunnen we de vragenlijst niet invullen.</p>
+            <p>Vraag even aan je begeleider wat je nu moet doen.</p>
           </div>
           <button
             className="bg-yellow-400 text-teal-900 font-semibold px-6 py-3 rounded-full hover:bg-yellow-300 transition"
@@ -192,27 +200,83 @@ export default function Survey() {
       return <p>Er zijn nog geen vragen toegevoegd.</p>;
     }
 
-    return (
-      <>
-        {questions.map((q, index) => (
-          <QuestionDisplay
-            key={q.uuid}
-            question={q}
-            index={index + 2} // Start from 2 because consent is question 1
-            name={`smiley-${q.uuid}`}
-            value={answers[q.uuid] || null}
-            onChange={(val) => handleChange(q.uuid, val)}
+    // EIND SCHERM: KLAAR OM TE VERSTUREN
+    if (currentQuestionIndex >= questions.length) {
+      return (
+        <div className="flex flex-col items-center w-full max-w-2xl animate-in fade-in zoom-in duration-300 text-center">
+          
+          <img 
+            src={groenImage} 
+            alt="Super goed" 
+            className="w-32 h-32 sm:w-40 sm:h-40 object-contain mb-6"
           />
-        ))}
 
-        <button
-          className="mt-3 bg-[#d9d9d9] text-gray-800 font-semibold py-2 px-10 rounded-full hover:bg-white transition disabled:opacity-60"
-          onClick={handleSubmit}
-          disabled={submitting}
-        >
-          {submitting ? "Versturen..." : "Versturen"}
-        </button>
-      </>
+          <h2 className="text-4xl font-bold mb-4">Super goed gedaan!</h2>
+          <p className="mb-8 text-xl text-white/90">
+            Je hebt alle vragen beantwoord. Wil je ze nu versturen?
+          </p>
+          
+          <button
+            className="bg-yellow-400 text-teal-900 font-bold text-xl py-4 px-12 rounded-full hover:bg-yellow-300 transition hover:scale-105 transform duration-200 shadow-xl disabled:opacity-60"
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? "Even geduld..." : "Ja, versturen!"}
+          </button>
+
+          <button 
+            className="mt-8 text-white/60 hover:text-white underline transition"
+            onClick={handlePrevious}
+          >
+            Terug naar de laatste vraag
+          </button>
+        </div>
+      );
+    }
+
+    // DE VRAGEN ZELF
+    const currentQ = questions[currentQuestionIndex];
+    const hasAnsweredCurrent = answers[currentQ.uuid] !== undefined;
+
+    return (
+      <div className="w-full flex flex-col items-center animate-in slide-in-from-right-8 fade-in duration-500">
+          <QuestionDisplay
+            key={currentQ.uuid}
+            question={currentQ}
+            index={currentQuestionIndex + 2}
+            name={`smiley-${currentQ.uuid}`}
+            value={answers[currentQ.uuid] || null}
+            onChange={(val) => handleChange(currentQ.uuid, val)}
+          />
+
+          <div className="mt-8 flex flex-col sm:flex-row gap-4 w-full max-w-md justify-center">
+             {currentQuestionIndex > 0 && (
+                <button 
+                    className="px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 text-white font-semibold transition"
+                    onClick={handlePrevious}
+                >
+                    Vorige
+                </button>
+             )}
+             
+             {/* Volgende knop */}
+             <button 
+                className={`flex-grow px-8 py-3 rounded-full font-bold text-lg transition shadow-lg
+                    ${hasAnsweredCurrent 
+                        ? "bg-yellow-400 text-teal-900 hover:bg-yellow-300 hover:scale-105" 
+                        : "bg-gray-500/50 text-gray-300 cursor-not-allowed"
+                    }`}
+                onClick={handleNext}
+                disabled={!hasAnsweredCurrent}
+             >
+                Volgende vraag
+             </button>
+          </div>
+
+          <div className="mt-6 text-sm text-white/40">
+             Vraag {currentQuestionIndex + 1} van {questions.length}
+          </div>
+      </div>
     );
   };
 
@@ -221,13 +285,13 @@ export default function Survey() {
       {showStart ? (
         <StartScreen
           onStart={(selectedMode) => {
-            setMode(selectedMode); // okd / regular
+            setMode(selectedMode);
             setShowStart(false);
           }}
         />
       ) : (
-        <section className="w-full max-w-5xl flex flex-col items-center gap-8 text-white text-center">
-          <h1 className="text-4xl sm:text-5xl font-bold">
+        <section className="w-full max-w-5xl flex flex-col items-center gap-6 text-white text-center py-8">
+          <h1 className="text-3xl sm:text-5xl font-bold">
             Vragenlijst
           </h1>
 
@@ -237,7 +301,8 @@ export default function Survey() {
             </div>
           )}
 
-          <div className="w-full flex flex-col items-center gap-10">
+          {/* justify-center veranderd naar justify-start + pt-10 voor stabiele bovenkant */}
+          <div className="w-full flex flex-col items-center justify-start pt-10 min-h-[400px]">
             {renderContent()}
           </div>
         </section>
