@@ -5,7 +5,7 @@ import StartScreen from "../components/StartScreen";
 import { questionsApi, responsesApi } from "../services/api";
 import { RATING_LABELS } from "../constants/ratings";
 import { CONSENT_QUESTION_UUID } from "../constants/consent";
-import groenImage from "../assets/images/groen.avif"; //
+import groenImage from "../assets/images/groen.avif"; 
 
 export default function Survey() {
   const [questions, setQuestions] = useState([]);
@@ -112,12 +112,10 @@ export default function Survey() {
   const renderContent = () => {
     if (submitted) {
       return (
-        // min-h-[calc...] weggehaald om verspringing te voorkomen
         <div className="flex flex-col items-center text-center p-6 animate-in fade-in zoom-in duration-300">
           <img
             src={groenImage}
             alt="Bedankt"
-            // mt-8 toegevoegd om hem iets lager te zetten
             className="w-40 mx-auto mb-6 rounded-lg mt-8"
           />
           <h2 className="text-4xl font-bold mb-4">
@@ -200,50 +198,17 @@ export default function Survey() {
       return <p>Er zijn nog geen vragen toegevoegd.</p>;
     }
 
-    // EIND SCHERM: KLAAR OM TE VERSTUREN
-    if (currentQuestionIndex >= questions.length) {
-      return (
-        <div className="flex flex-col items-center w-full max-w-2xl animate-in fade-in zoom-in duration-300 text-center">
-          
-          <img 
-            src={groenImage} 
-            alt="Super goed" 
-            className="w-32 h-32 sm:w-40 sm:h-40 object-contain mb-6"
-          />
-
-          <h2 className="text-4xl font-bold mb-4">Super goed gedaan!</h2>
-          <p className="mb-8 text-xl text-white/90">
-            Je hebt alle vragen beantwoord. Wil je ze nu versturen?
-          </p>
-          
-          <button
-            className="bg-yellow-400 text-teal-900 font-bold text-xl py-4 px-12 rounded-full hover:bg-yellow-300 transition hover:scale-105 transform duration-200 shadow-xl disabled:opacity-60"
-            onClick={handleSubmit}
-            disabled={submitting}
-          >
-            {submitting ? "Even geduld..." : "Ja, versturen!"}
-          </button>
-
-          <button 
-            className="mt-8 text-white/60 hover:text-white underline transition"
-            onClick={handlePrevious}
-          >
-            Terug naar de laatste vraag
-          </button>
-        </div>
-      );
-    }
-
     // DE VRAGEN ZELF
     const currentQ = questions[currentQuestionIndex];
     const hasAnsweredCurrent = answers[currentQ.uuid] !== undefined;
+    const isLastQuestion = currentQuestionIndex === questions.length - 1;
 
     return (
       <div className="w-full flex flex-col items-center animate-in slide-in-from-right-8 fade-in duration-500">
           <QuestionDisplay
             key={currentQ.uuid}
             question={currentQ}
-            index={currentQuestionIndex + 2}
+            index={currentQuestionIndex + 1} // Index aangepast zodat het logisch doortelt (toestemming is "0")
             name={`smiley-${currentQ.uuid}`}
             value={answers[currentQ.uuid] || null}
             onChange={(val) => handleChange(currentQ.uuid, val)}
@@ -254,22 +219,25 @@ export default function Survey() {
                 <button 
                     className="px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 text-white font-semibold transition"
                     onClick={handlePrevious}
+                    disabled={submitting}
                 >
                     Vorige
                 </button>
              )}
              
-             {/* Volgende knop */}
+             {/* Volgende knop OF Verstuur knop */}
              <button 
                 className={`flex-grow px-8 py-3 rounded-full font-bold text-lg transition shadow-lg
-                    ${hasAnsweredCurrent 
+                    ${hasAnsweredCurrent && !submitting
                         ? "bg-yellow-400 text-teal-900 hover:bg-yellow-300 hover:scale-105" 
                         : "bg-gray-500/50 text-gray-300 cursor-not-allowed"
                     }`}
-                onClick={handleNext}
-                disabled={!hasAnsweredCurrent}
+                onClick={isLastQuestion ? handleSubmit : handleNext}
+                disabled={!hasAnsweredCurrent || submitting}
              >
-                Volgende vraag
+                {isLastQuestion 
+                  ? (submitting ? "Even geduld..." : "Vragen versturen") 
+                  : "Volgende vraag"}
              </button>
           </div>
 
@@ -301,7 +269,6 @@ export default function Survey() {
             </div>
           )}
 
-          {/* justify-center veranderd naar justify-start + pt-10 voor stabiele bovenkant */}
           <div className="w-full flex flex-col items-center justify-start pt-10 min-h-[400px]">
             {renderContent()}
           </div>
