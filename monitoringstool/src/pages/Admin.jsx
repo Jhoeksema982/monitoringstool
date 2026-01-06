@@ -139,7 +139,7 @@ export default function Admin() {
   const [authError, setAuthError] = useState(null);
   const [userEmail, setUserEmail] = useState("");
 
-  // Responses state
+  // Responses state (Now stores Submissions!)
   const [responses, setResponses] = useState([]);
   const [responsesLoading, setResponsesLoading] = useState(false);
   const [responsesError, setResponsesError] = useState(null);
@@ -257,18 +257,19 @@ export default function Admin() {
     }
   };
 
+  // UPDATED: Use getSubmissions instead of list
   const loadResponses = async (page, limit) => {
     try {
       setResponsesLoading(true);
-      const result = await responsesApi.list({ page, limit });
-      setResponses(result.data || []);
+      const result = await responsesApi.getSubmissions({ page, limit });
+      setResponses(result.data || []); // These are now submission groups
       const pg = result.pagination || { hasNext: false, hasPrev: false };
       setRespHasNext(Boolean(pg.hasNext));
       setRespHasPrev(Boolean(pg.hasPrev));
       setResponsesError(null);
     } catch (e) {
-      console.error('Error loading responses:', e);
-      setResponsesError('Kon antwoorden niet laden');
+      console.error('Error loading submissions:', e);
+      setResponsesError('Kon inzendingen niet laden');
     } finally {
       setResponsesLoading(false);
     }

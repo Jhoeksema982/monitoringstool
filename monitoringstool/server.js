@@ -416,7 +416,71 @@ const { error } = await supabase
   }
 );
 
-// List responses with pagination and optional question filter
+// GET Submissions (Groups) - NEW ENDPOINT FOR ADMIN
+app.get('/api/submissions', 
+  authenticate,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { page = 1, limit = 10, survey_type } = req.query;
+      const offset = (page - 1) * limit;
+
+      // 1. Haal de groepen (submissions) op
+      let query = supabase
+        .from('submissions')
+        .select('*, responses(uuid, question_uuid, response_data, user_identifier)', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (survey_type) {
+        query = query.eq('survey_type', survey_type);
+      }
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+
+      // 2. Haal de vraag-titels op om de antwoorden leesbaar te maken
+      const allResponseUuids = (data || []).flatMap(sub => sub.responses.map(r => r.question_uuid));
+      const uniqueQ_Uuids = [...new Set(allResponseUuids)];
+      
+      let titlesMap = {};
+      if (uniqueQ_Uuids.length > 0) {
+        const { data: qData } = await supabase
+          .from('questions')
+          .select('uuid, title')
+          .in('uuid', uniqueQ_Uuids);
+        (qData || []).forEach(q => titlesMap[q.uuid] = q.title);
+      }
+
+      // Voeg titels toe aan de nested responses
+      const enrichedData = data.map(sub => ({
+        ...sub,
+        responses: sub.responses.map(r => ({
+          ...r,
+          question_title: titlesMap[r.question_uuid] || 'Onbekende vraag'
+        }))
+      }));
+
+      res.json({
+        data: enrichedData,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: count || 0,
+          totalPages: Math.ceil((count || 0) / limit),
+          hasNext: (offset + limit) < count,
+          hasPrev: page > 1
+        }
+      });
+
+    } catch (error) {
+      console.error('Error fetching submissions:', error);
+      res.status(500).json({ error: 'Failed to fetch submissions' });
+    }
+  }
+);
+
+// List responses (OLD - kept for compatibility/stats if needed)
 app.get('/api/responses',
   authenticate,
   requireAdmin,
@@ -432,7 +496,6 @@ app.get('/api/responses',
 
       if (question_uuid) query = query.eq('question_uuid', question_uuid);
 
-      // If created_at was removed, order by uuid as a stable fallback
       query = query.order('uuid', { ascending: false }).range(offset, offset + limit - 1);
 
       const { data, error, count } = await query;
@@ -477,7 +540,7 @@ app.get('/api/responses',
   }
 );
 
-// Responses stats (aggregate per question and per response value, grouped by survey_type)
+// Responses stats
 app.get('/api/responses/stats',
   authenticate,
   requireAdmin,
@@ -539,16 +602,29 @@ app.get('/api/responses/stats',
   }
 );
 
-// Save responses (batch)
+// Save responses (batch) - AANGEPASTE VERSIE MET SUBMISSION LOGICA
 app.post('/api/responses',
   validateBody(batchQuestionResponsesSchema),
   async (req, res) => {
     try {
       const submissionUuid = uuidv4();
       const surveyType = req.body.survey_type || 'regular';
+
+      // 1. EERST: Maak de submission (groep) aan in de database
+      const { error: subError } = await supabase
+        .from('submissions')
+        .insert({
+          uuid: submissionUuid,
+          survey_type: surveyType,
+          created_at: new Date().toISOString()
+        });
+
+      if (subError) throw subError;
+
+      // 2. DAARNA: Koppel de antwoorden aan deze submission
       const records = (req.body.responses || []).map(r => ({
         uuid: uuidv4(),
-        submission_uuid: submissionUuid,
+        submission_uuid: submissionUuid, // Link naar de net gemaakte groep
         question_uuid: r.question_uuid,
         response_data: r.response_data,
         user_identifier: r.user_identifier || null,
@@ -561,7 +637,7 @@ app.post('/api/responses',
 
       if (error) throw error;
 
-      res.status(201).json({ message: 'Responses saved' });
+      res.status(201).json({ message: 'Responses saved', submission_uuid: submissionUuid });
     } catch (error) {
       console.error('Error saving responses:', error);
       res.status(500).json({ 

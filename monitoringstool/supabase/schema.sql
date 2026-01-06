@@ -173,3 +173,36 @@ begin
     );
   end if;
 end $$;
+
+-- 1. Zorg dat de tabel bestaat
+create table if not exists public.submissions (
+  uuid uuid primary key default gen_random_uuid(),
+  survey_type varchar(50) default 'regular',
+  created_at timestamptz default now()
+);
+
+-- 2. REPARATIE: Vul de submissions tabel met bestaande ID's uit responses
+-- Dit lost de error op door "missende" ouders aan te maken voor je bestaande data.
+insert into public.submissions (uuid, survey_type, created_at)
+select distinct submission_uuid, 'regular', now()
+from public.responses
+where submission_uuid is not null
+  and submission_uuid not in (select uuid from public.submissions);
+
+-- 3. Nu kunnen we de koppeling veilig maken
+do $$ begin
+  -- Verwijder de constraint als hij al (half) bestaat om conflicten te voorkomen
+  if exists (
+    select 1 from information_schema.table_constraints 
+    where constraint_name = 'fk_responses_submission'
+  ) then
+    alter table public.responses drop constraint fk_responses_submission;
+  end if;
+
+  -- Voeg de constraint opnieuw toe
+  alter table public.responses
+    add constraint fk_responses_submission
+    foreign key (submission_uuid)
+    references public.submissions(uuid)
+    on delete cascade;
+end $$;

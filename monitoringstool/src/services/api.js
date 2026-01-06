@@ -115,13 +115,21 @@ export const responsesApi = {
   // Submit survey response
   submit: (payload) => apiService.post('/responses', payload),
 
-  // List responses
+  // List responses (OLD - kept for compatibility if needed elsewhere)
   list: ({ page = 1, limit = 10, question_uuid, mode } = {}) => {
     const params = { page, limit };
     if (question_uuid) params.question_uuid = question_uuid;
     if (mode) params.mode = mode;
     const qs = new URLSearchParams(params).toString();
     return apiService.get(`/responses?${qs}`);
+  },
+
+  // GET Submissions (Groups) - NEW
+  getSubmissions: ({ page = 1, limit = 10, survey_type } = {}) => {
+    const params = { page, limit };
+    if (survey_type) params.survey_type = survey_type;
+    const qs = new URLSearchParams(params).toString();
+    return apiService.get(`/submissions?${qs}`);
   },
 
   // Stats endpoint
