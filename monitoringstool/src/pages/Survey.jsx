@@ -21,6 +21,7 @@ export default function Survey() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
   const [mode, setMode] = useState("regular");
+  const [location, setLocation] = useState(null); // NIEUWE STATE
   const [showStart, setShowStart] = useState(true);
 
   useEffect(() => {
@@ -96,8 +97,10 @@ export default function Survey() {
 
     try {
       setSubmitting(true);
+      // STUUR NU OOK LOCATION MEE
       await responsesApi.submit({
         survey_type: mode,
+        location: location, 
         responses,
       });
       setSubmitted(true);
@@ -122,7 +125,7 @@ export default function Survey() {
             Bedankt voor het invullen!
           </h2>
           <p className="mb-6 text-xl text-gray-200">
-            Je antwoorden zijn goed ontvangen.
+            Je antwoorden zijn goed ontvangen voor locatie <span className="font-bold text-yellow-400">{location}</span>.
           </p>
           <button
             className="bg-yellow-400 text-teal-900 font-semibold px-6 py-3 rounded-full hover:bg-yellow-300 transition"
@@ -131,6 +134,7 @@ export default function Survey() {
               setAnswers({});
               setConsent(null);
               setCurrentQuestionIndex(0);
+              setShowStart(true); // Terug naar startscherm voor nieuwe locatie keuze indien nodig
             }}
           >
             Nieuwe vragenlijst
@@ -205,10 +209,15 @@ export default function Survey() {
 
     return (
       <div className="w-full flex flex-col items-center animate-in slide-in-from-right-8 fade-in duration-500">
+          <div className="w-full max-w-2xl mb-4 flex justify-between items-center px-4">
+             <span className="text-teal-200 text-sm">Locatie: <span className="font-semibold text-white">{location}</span></span>
+             <span className="text-teal-200 text-sm">{mode === 'ouder_kind' ? 'Ouder-Kind Dag' : 'Regulier'}</span>
+          </div>
+
           <QuestionDisplay
             key={currentQ.uuid}
             question={currentQ}
-            index={currentQuestionIndex + 1} // Index aangepast zodat het logisch doortelt (toestemming is "0")
+            index={currentQuestionIndex + 1}
             name={`smiley-${currentQ.uuid}`}
             value={answers[currentQ.uuid] || null}
             onChange={(val) => handleChange(currentQ.uuid, val)}
@@ -225,7 +234,6 @@ export default function Survey() {
                 </button>
              )}
              
-             {/* Volgende knop OF Verstuur knop */}
              <button 
                 className={`flex-grow px-8 py-3 rounded-full font-bold text-lg transition shadow-lg
                     ${hasAnsweredCurrent && !submitting
@@ -252,8 +260,9 @@ export default function Survey() {
     <>
       {showStart ? (
         <StartScreen
-          onStart={(selectedMode) => {
+          onStart={(selectedMode, selectedLocation) => {
             setMode(selectedMode);
+            setLocation(selectedLocation);
             setShowStart(false);
           }}
         />

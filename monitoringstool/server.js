@@ -602,20 +602,23 @@ app.get('/api/responses/stats',
   }
 );
 
-// Save responses (batch) - AANGEPASTE VERSIE MET SUBMISSION LOGICA
+// Save responses (batch) - UPDATED FOR LOCATION
 app.post('/api/responses',
   validateBody(batchQuestionResponsesSchema),
   async (req, res) => {
     try {
       const submissionUuid = uuidv4();
       const surveyType = req.body.survey_type || 'regular';
+      // NIEUW: Haal locatie op uit request
+      const location = req.body.location || null;
 
-      // 1. EERST: Maak de submission (groep) aan in de database
+      // 1. EERST: Maak de submission (groep) aan in de database MET locatie
       const { error: subError } = await supabase
         .from('submissions')
         .insert({
           uuid: submissionUuid,
           survey_type: surveyType,
+          location: location, 
           created_at: new Date().toISOString()
         });
 
@@ -624,7 +627,7 @@ app.post('/api/responses',
       // 2. DAARNA: Koppel de antwoorden aan deze submission
       const records = (req.body.responses || []).map(r => ({
         uuid: uuidv4(),
-        submission_uuid: submissionUuid, // Link naar de net gemaakte groep
+        submission_uuid: submissionUuid, 
         question_uuid: r.question_uuid,
         response_data: r.response_data,
         user_identifier: r.user_identifier || null,

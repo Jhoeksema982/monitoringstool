@@ -6,7 +6,7 @@ const SURVEY_TYPES = [
 ];
 
 export default function ResponsesTable({
-  responses, // Dit zijn nu SUBMISSIONS (groepen)
+  responses, // Dit zijn SUBMISSIONS (groepen)
   responsesLoading,
   responsesError,
   respPage,
@@ -72,19 +72,19 @@ export default function ResponsesTable({
                 <thead className="bg-teal-600 text-sm uppercase text-gray-100">
                   <tr>
                     <th className="px-4 py-2">Datum</th>
+                    <th className="px-4 py-2">Locatie</th> {/* NIEUWE KOLOM */}
                     <th className="px-4 py-2">Info</th>
                     <th className="px-4 py-2">Actie</th>
-                    <th className="px-4 py-2">&nbsp;</th>
                   </tr>
                 </thead>
                 <tbody>
                   {responsesLoading ? (
                     <tr>
-                      <td className="px-4 py-3" colSpan={4}>Laden...</td>
+                      <td className="px-4 py-3" colSpan={5}>Laden...</td>
                     </tr>
                   ) : !hasItems ? (
                     <tr>
-                      <td className="px-4 py-3" colSpan={4}>
+                      <td className="px-4 py-3" colSpan={5}>
                         Geen antwoorden gevonden.
                       </td>
                     </tr>
@@ -97,6 +97,7 @@ export default function ResponsesTable({
                       // Zoek user identifier in de antwoorden
                       const firstUser = cleanResponses.find((it) => it.user_identifier)?.user_identifier || "-";
                       const dateStr = new Date(sub.created_at).toLocaleString('nl-NL');
+                      const locStr = sub.location || "Onbekend";
 
                       return (
                         <>
@@ -113,17 +114,19 @@ export default function ResponsesTable({
                             <td className="px-4 py-3 text-sm text-gray-200">
                               {dateStr}
                             </td>
+                            <td className="px-4 py-3 text-sm font-semibold text-white">
+                              {locStr}
+                            </td>
                             <td className="px-4 py-3">
-                              {cleanResponses.length} vragen ingevuld · {firstUser}
+                              {cleanResponses.length} vragen · {firstUser}
                             </td>
                             <td className="px-4 py-3 text-sm text-yellow-300">
-                              {isOpen ? "Verberg" : "Toon details"}
+                              {isOpen ? "Verberg" : "Details"}
                             </td>
-                            <td className="px-4 py-3" />
                           </tr>
                           {isOpen && (
                             <tr key={`details-${sub.uuid}`} className="border-t border-teal-700">
-                              <td className="px-4 py-3 bg-teal-750" colSpan={4}>
+                              <td className="px-4 py-3 bg-teal-750" colSpan={5}>
                                 <div className="divide-y divide-teal-600">
                                   {cleanResponses.map((r) => (
                                     <div

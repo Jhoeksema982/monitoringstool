@@ -212,13 +212,6 @@ export const questionsQuerySchema = Joi.object({
     .messages({
       'any.only': 'Sort order must be ASC or DESC'
     })
-    ,
-  mode: Joi.string()
-    .valid('regular', 'ouder_kind')
-    .optional()
-    .messages({
-      'any.only': 'Mode must be regular or ouder_kind'
-    })
 });
 
 // Responses list query schema
@@ -255,7 +248,7 @@ export const questionResponseSchema = Joi.object({
     })
 });
 
-// Batch responses schema
+// Batch responses schema - AANGEPAST MET LOCATION
 export const batchQuestionResponsesSchema = Joi.object({
   responses: Joi.array().items(questionResponseSchema).min(1).required(),
   survey_type: Joi.string()
@@ -263,6 +256,13 @@ export const batchQuestionResponsesSchema = Joi.object({
     .default('regular')
     .messages({
       'any.only': 'Survey type must be regular or ouder_kind'
+    }),
+  location: Joi.string()
+    .valid('Zaanstad', 'Veenhuizen', 'Almelo')
+    .required()
+    .messages({
+      'any.only': 'Selecteer een geldige locatie (Zaanstad, Veenhuizen of Almelo)',
+      'any.required': 'Locatie is verplicht'
     }),
 });
 
