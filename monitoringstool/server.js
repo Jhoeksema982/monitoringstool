@@ -546,10 +546,22 @@ app.get('/api/responses/stats',
   requireAdmin,
   async (req, res) => {
     try {
-      // Fetch all responses with survey_type
-      let query = supabase
-        .from('responses')
-        .select('question_uuid, response_data, survey_type');
+      const { location } = req.query;
+
+      // Begin met de query op responses
+      let query = supabase.from('responses');
+
+      // NIEUW: Filter logica toevoegen
+      if (location) {
+        // We gebruiken !inner om te forceren dat de response bij een submission hoort 
+        // die de opgegeven locatie heeft.
+        query = query
+          .select('question_uuid, response_data, survey_type, submissions!inner(location)')
+          .eq('submissions.location', location);
+      } else {
+        // Geen locatie gekozen? Haal alles op
+        query = query.select('question_uuid, response_data, survey_type');
+      }
 
       const { data, error } = await query;
 

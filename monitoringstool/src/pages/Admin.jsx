@@ -152,6 +152,8 @@ export default function Admin() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState(null);
   const [statsData, setStatsData] = useState([]);
+  // NIEUW: State voor locatie filter
+  const [locationFilter, setLocationFilter] = useState("");
 
   // Simple admin allow-list using env: VITE_ADMIN_EMAILS="a@b.com,c@d.com"
   const allowedEmails = String(import.meta.env.VITE_ADMIN_EMAILS || "")
@@ -180,22 +182,27 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userEmail, isAuthorized, respPage]);
 
+  // AANGEPASTE useEffect voor het laden van stats
   useEffect(() => {
     if (!userEmail || !isAuthorized) return;
-    (async () => {
-      try {
-        setStatsLoading(true);
-        const result = await responsesApi.stats();
-        setStatsData(result.data || []);
-        setStatsError(null);
-      } catch (e) {
-        console.error('Error loading stats:', e);
-        setStatsError('Kon statistieken niet laden');
-      } finally {
-        setStatsLoading(false);
-      }
-    })();
-  }, [userEmail, isAuthorized]);
+    loadStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userEmail, isAuthorized, locationFilter]); // Voeg locationFilter toe aan dependency array
+
+  const loadStats = async () => {
+    try {
+      setStatsLoading(true);
+      // Geef de locatie mee aan de API call
+      const result = await responsesApi.stats({ location: locationFilter });
+      setStatsData(result.data || []);
+      setStatsError(null);
+    } catch (e) {
+      console.error('Error loading stats:', e);
+      setStatsError('Kon statistieken niet laden');
+    } finally {
+      setStatsLoading(false);
+    }
+  };
 
   // DnD sensors
   const sensors = useSensors(
@@ -275,17 +282,8 @@ export default function Admin() {
     }
   };
 
-  const handleRefreshStats = async () => {
-    try {
-      setStatsLoading(true);
-      const result = await responsesApi.stats();
-      setStatsData(result.data || []);
-      setStatsError(null);
-    } catch (_e) {
-      setStatsError('Kon statistieken niet laden');
-    } finally {
-      setStatsLoading(false);
-    }
+  const handleRefreshStats = () => {
+    loadStats();
   };
 
   if (loading) {
@@ -453,6 +451,8 @@ export default function Admin() {
         statsLoading={statsLoading}
         statsError={statsError}
         onRefresh={handleRefreshStats}
+        selectedLocation={locationFilter}
+        onLocationChange={setLocationFilter}
       />
 
       <ResponsesTable

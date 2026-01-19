@@ -16,7 +16,21 @@ const TABS = [
   { key: "ouder_kind", label: "Ouder-kind dagen" },
 ];
 
-export default function StatsSection({ statsData, statsLoading, statsError, onRefresh }) {
+const LOCATIONS = [
+  { key: "", label: "Alle locaties" },
+  { key: "Zaanstad", label: "PI Zaanstad" },
+  { key: "Veenhuizen", label: "PI Veenhuizen" },
+  { key: "Almelo", label: "PI Almelo" },
+];
+
+export default function StatsSection({ 
+  statsData, 
+  statsLoading, 
+  statsError, 
+  onRefresh,
+  selectedLocation,   // Nieuw prop
+  onLocationChange    // Nieuw prop
+}) {
   const [activeTab, setActiveTab] = useState("regular");
   const chartsPerPage = 6;
   const [page, setPage] = useState(1);
@@ -62,21 +76,40 @@ export default function StatsSection({ statsData, statsLoading, statsError, onRe
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-4">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${
-              activeTab === tab.key
-                ? "bg-yellow-400 text-teal-900"
-                : "bg-teal-600 hover:bg-teal-500 text-white"
-            }`}
-            onClick={() => setActiveTab(tab.key)}
+      {/* Controls Container: Tabs + Locatie Dropdown */}
+      <div className="flex flex-col sm:flex-row gap-4 mb-4 justify-between items-start sm:items-center">
+        {/* Tabs */}
+        <div className="flex gap-2">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                activeTab === tab.key
+                  ? "bg-yellow-400 text-teal-900"
+                  : "bg-teal-600 hover:bg-teal-500 text-white"
+              }`}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Locatie Dropdown */}
+        <div className="flex items-center gap-2">
+          <label className="text-gray-200 text-sm font-semibold">Locatie:</label>
+          <select
+            value={selectedLocation}
+            onChange={(e) => onLocationChange(e.target.value)}
+            className="bg-teal-600 hover:bg-teal-500 text-white p-2 rounded cursor-pointer border-none outline-none font-semibold"
           >
-            {tab.label}
-          </button>
-        ))}
+            {LOCATIONS.map((loc) => (
+              <option key={loc.key} value={loc.key} className="bg-teal-800">
+                {loc.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {statsError && (
@@ -87,7 +120,7 @@ export default function StatsSection({ statsData, statsLoading, statsError, onRe
         {statsLoading ? (
           <div>Laden...</div>
         ) : !hasData ? (
-          <div>Geen data beschikbaar.</div>
+          <div className="text-gray-200 italic">Geen data beschikbaar voor deze selectie.</div>
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-4 mb-6 text-xs text-gray-100">
@@ -122,7 +155,7 @@ export default function StatsSection({ statsData, statsLoading, statsError, onRe
                       <p className="text-[11px] uppercase tracking-wide text-teal-200/80 mb-1">
                         Vraag
                       </p>
-                      <h3 className="font-semibold text-base leading-snug text-teal-50">{question.question_title}</h3>
+                      <h3 className="font-semibold text-base leading-snug text-teal-50 min-h-[3rem]">{question.question_title}</h3>
                     </div>
 
                     <div className="h-56 w-full">
@@ -132,7 +165,7 @@ export default function StatsSection({ statsData, statsLoading, statsError, onRe
                           <YAxis allowDecimals={false} stroke="#e5e7eb" tick={{ fontSize: 11 }} />
                           <Tooltip
                             cursor={{ fill: "rgba(15,118,110,0.2)" }}
-                            contentStyle={{ backgroundColor: "#0f766e", border: "none", borderRadius: "0.5rem" }}
+                            contentStyle={{ backgroundColor: "#0f766e", border: "none", borderRadius: "0.5rem", color: "#fff" }}
                             labelStyle={{ color: "#f9fafb" }}
                           />
                           <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={36}>
@@ -175,5 +208,3 @@ export default function StatsSection({ statsData, statsLoading, statsError, onRe
     </div>
   );
 }
-
-

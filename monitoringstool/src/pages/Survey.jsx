@@ -21,7 +21,7 @@ export default function Survey() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
   const [mode, setMode] = useState("regular");
-  const [location, setLocation] = useState(null); // NIEUWE STATE
+  const [location, setLocation] = useState(null);
   const [showStart, setShowStart] = useState(true);
 
   useEffect(() => {
@@ -130,11 +130,13 @@ export default function Survey() {
           <button
             className="bg-yellow-400 text-teal-900 font-semibold px-6 py-3 rounded-full hover:bg-yellow-300 transition"
             onClick={() => {
+              // RESET DE STATE VOOR EEN NIEUWE SESSIE
               setSubmitted(false);
               setAnswers({});
               setConsent(null);
               setCurrentQuestionIndex(0);
-              setShowStart(true); // Terug naar startscherm voor nieuwe locatie keuze indien nodig
+              // LET OP: setShowStart(true) is verwijderd, zodat je direct opnieuw begint
+              // met dezelfde locatie en modus.
             }}
           >
             Nieuwe vragenlijst
