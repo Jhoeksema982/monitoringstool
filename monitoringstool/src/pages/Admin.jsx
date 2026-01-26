@@ -35,7 +35,7 @@ function SortableQuestionItem({ question, onDelete, onEditClick, onSaveEdit, isE
             {...listeners}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" className="text-gray-200" viewBox="0 0 16 16">
-              <path d="M2 3.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM8 3.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM14 3.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/>
+              <path d="M2 3.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM8 3.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM14 3.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM14 3.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/>
             </svg>
           </button>
         )}
@@ -148,11 +148,12 @@ export default function Admin() {
   const [respHasNext, setRespHasNext] = useState(false);
   const [respHasPrev, setRespHasPrev] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState({});
+  
   // Stats
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState(null);
   const [statsData, setStatsData] = useState([]);
-  // NIEUW: State voor locatie filter
+  const [globalStats, setGlobalStats] = useState([]); // Nieuw: Altijd de 'Alle locaties' stats
   const [locationFilter, setLocationFilter] = useState("");
 
   // Simple admin allow-list using env: VITE_ADMIN_EMAILS="a@b.com,c@d.com"
@@ -182,12 +183,23 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userEmail, isAuthorized, respPage]);
 
-  // AANGEPASTE useEffect voor het laden van stats
+  // Load stats
   useEffect(() => {
     if (!userEmail || !isAuthorized) return;
     loadStats();
+    // Also load global stats once for the comparison chart
+    loadGlobalStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userEmail, isAuthorized, locationFilter]); // Voeg locationFilter toe aan dependency array
+  }, [userEmail, isAuthorized, locationFilter]); 
+
+  const loadGlobalStats = async () => {
+    try {
+      const result = await responsesApi.stats({ location: "" });
+      setGlobalStats(result.data || []);
+    } catch (e) {
+      console.error('Error loading global stats:', e);
+    }
+  };
 
   const loadStats = async () => {
     try {
@@ -226,8 +238,6 @@ export default function Admin() {
     try {
       setLoading(true);
       const response = await questionsApi.getAll();
-      // API returns { data: [...] } structure
-      // Filter out consent question (should not be editable in admin)
       const filteredQuestions = (response.data || []).filter(
         (q) => q.uuid !== CONSENT_QUESTION_UUID
       );
@@ -244,7 +254,6 @@ export default function Admin() {
   const addQuestion = async (question) => {
     try {
       const response = await questionsApi.create(question);
-      // API returns { data: question } structure
       setQuestions(prev => [...prev, response.data]);
       setError(null);
     } catch (err) {
@@ -264,12 +273,11 @@ export default function Admin() {
     }
   };
 
-  // UPDATED: Use getSubmissions instead of list
   const loadResponses = async (page, limit) => {
     try {
       setResponsesLoading(true);
       const result = await responsesApi.getSubmissions({ page, limit });
-      setResponses(result.data || []); // These are now submission groups
+      setResponses(result.data || []);
       const pg = result.pagination || { hasNext: false, hasPrev: false };
       setRespHasNext(Boolean(pg.hasNext));
       setRespHasPrev(Boolean(pg.hasPrev));
@@ -284,6 +292,7 @@ export default function Admin() {
 
   const handleRefreshStats = () => {
     loadStats();
+    loadGlobalStats();
   };
 
   if (loading) {
@@ -448,6 +457,8 @@ export default function Admin() {
 
       <StatsSection
         statsData={statsData}
+        globalStats={globalStats} 
+        fetchLocationStats={async (loc) => (await responsesApi.stats({ location: loc })).data}
         statsLoading={statsLoading}
         statsError={statsError}
         onRefresh={handleRefreshStats}
