@@ -9,9 +9,9 @@
     "vercel-build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "server": "node server.js",
-    "dev:server": "node --watch server.js",
-    "start": "node server.js",
+"server": "node server/server.js",
+"dev:server": "node --watch server/server.js",
+"start": "node server/server.js",
     "health": "curl http://localhost:5000/api/health"
   },
   "dependencies": {

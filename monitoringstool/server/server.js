@@ -21,7 +21,7 @@ import {
 } from './validation/schemas.js';
 
 // Supabase client
-import supabase from './supabase/client.js';
+import supabase from '../supabase/client.js';
 
 // Load environment variables
 dotenv.config();
