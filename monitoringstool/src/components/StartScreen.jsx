@@ -15,8 +15,8 @@ const StartScreen = ({ onStart }) => {
       return;
     }
     setError(null);
-    const useNumbers = selectedAge === "ouder";
-    onStart(mode, selectedLocation, useNumbers);
+    const ageGroup = selectedAge === "ouder" ? "12_plus" : "under_12";
+    onStart(mode, selectedLocation, ageGroup);
   };
 
   return (

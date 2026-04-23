@@ -23,6 +23,16 @@ begin
 end;
 $$ language plpgsql;
 
+-- Question types enum
+do $$ begin
+  create type question_type as enum ('smiley','number','open','multiple_choice','scale','boolean');
+exception when duplicate_object then null; end $$;
+
+-- Age group enum
+do $$ begin
+  create type age_group as enum ('all','under_12','12_plus');
+exception when duplicate_object then null; end $$;
+
 -- Questions table
 create table if not exists public.questions (
   id bigserial primary key,
@@ -33,6 +43,9 @@ create table if not exists public.questions (
   priority priority_level not null default 'medium',
   status question_status not null default 'active',
   mode varchar(50) not null default 'regular',
+  type question_type not null default 'smiley',
+  options jsonb,
+  age_group age_group not null default 'all',
   created_by varchar(255),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -44,6 +57,8 @@ create index if not exists idx_questions_category on public.questions (category)
 create index if not exists idx_questions_status on public.questions (status);
 create index if not exists idx_questions_priority on public.questions (priority);
 create index if not exists idx_questions_mode on public.questions (mode);
+create index if not exists idx_questions_type on public.questions (type);
+create index if not exists idx_questions_age_group on public.questions (age_group);
 
 -- Trigger
 drop trigger if exists set_timestamp on public.questions;
@@ -86,6 +101,43 @@ create table if not exists public.submissions (
   location varchar(100),
   created_at timestamptz default now()
 );
+
+-- Admins table (for managing admin accounts)
+create table if not exists public.admins (
+  id bigserial primary key,
+  uuid uuid not null unique default gen_random_uuid(),
+  email varchar(255) not null unique,
+  password_hash varchar(255) not null,
+  role varchar(50) default 'admin',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- Add trigger for updated_at
+drop trigger if exists admins_updated_at on public.admins;
+create trigger admins_updated_at
+before update on public.admins
+for each row execute procedure set_updated_at();
+
+-- Index for admins
+create index if not exists idx_admins_email on public.admins (email);
+
+-- Trigger function to hash password before insert/update
+create or replace function hash_password()
+returns trigger as $$
+begin
+  if new.password_hash is not null and length(new.password_hash) < 60 then
+    new.password_hash := crypt(new.password_hash, gen_salt('bf'));
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+-- Add password hashing trigger
+drop trigger if exists hash_password_trigger on public.admins;
+create trigger hash_password_trigger
+before insert or update on public.admins
+for each row execute procedure hash_password();
 
 -- ========================================
 -- VRAAG UPDATE: Change 'ruimte' to 'plek'
