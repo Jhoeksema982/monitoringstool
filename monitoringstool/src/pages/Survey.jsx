@@ -25,6 +25,43 @@ export default function Survey() {
   const [showStart, setShowStart] = useState(true);
 
   useEffect(() => {
+    const saved = localStorage.getItem("survey_state");
+    if (saved) {
+      try {
+        const state = JSON.parse(saved);
+        setAnswers(state.answers || {});
+        setConsent(state.consent);
+        setCurrentQuestionIndex(state.currentQuestionIndex || 0);
+        setMode(state.mode);
+        setLocation(state.location);
+        if (state.location && state.mode) {
+          setShowStart(false);
+        }
+      } catch {}
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!showStart) {
+      localStorage.setItem("survey_state", JSON.stringify({
+        answers,
+        consent,
+        currentQuestionIndex,
+        mode,
+        location
+      }));
+    }
+  }, [answers, consent, currentQuestionIndex, mode, location, showStart]);
+
+  const clearSurveyState = () => {
+    localStorage.removeItem("survey_state");
+    setAnswers({});
+    setConsent(null);
+    setCurrentQuestionIndex(0);
+    setShowStart(true);
+  };
+
+  useEffect(() => {
     if (!showStart) loadQuestions();
   }, [showStart]);
 
@@ -104,6 +141,11 @@ export default function Survey() {
         responses,
       });
       setSubmitted(true);
+      localStorage.removeItem("survey_state");
+      setAnswers({});
+      setConsent(null);
+      setCurrentQuestionIndex(0);
+      setShowStart(true);
     } catch (e) {
       console.error(e);
       setSubmitError("Versturen mislukt. Probeer het opnieuw.");
@@ -130,13 +172,7 @@ export default function Survey() {
           <button
             className="bg-yellow-400 text-teal-900 font-semibold px-6 py-3 rounded-full hover:bg-yellow-300 transition"
             onClick={() => {
-              // RESET DE STATE VOOR EEN NIEUWE SESSIE
-              setSubmitted(false);
-              setAnswers({});
-              setConsent(null);
-              setCurrentQuestionIndex(0);
-              // LET OP: setShowStart(true) is verwijderd, zodat je direct opnieuw begint
-              // met dezelfde locatie en modus.
+              clearSurveyState();
             }}
           >
             Nieuwe vragenlijst
@@ -270,6 +306,18 @@ export default function Survey() {
         />
       ) : (
         <section className="w-full max-w-5xl flex flex-col items-center gap-6 text-white text-center py-8">
+          <div className="w-full flex justify-start">
+            <button
+              className="text-teal-200 hover:text-white text-sm flex items-center gap-1"
+              onClick={clearSurveyState}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path fillRule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
+              </svg>
+              Terug naar home
+            </button>
+          </div>
+
           <h1 className="text-3xl sm:text-5xl font-bold">
             Vragenlijst
           </h1>
