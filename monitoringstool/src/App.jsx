@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from "react-route
 import Survey from "./pages/Survey";
 import Admin from "./pages/Admin";
 import Navbar from "./components/Navbar";
+import PasswordGate from "./components/PasswordGate";
 import backgroundImage from "./assets/images/background2.jpeg";
 
 const backgroundStyle = {
@@ -29,7 +30,7 @@ function AppContent() {
       <Navbar />
       <div className={contentClass}>
         <Routes>
-          <Route path="/" element={<Survey />} />
+          <Route path="/" element={<PasswordGate><Survey /></PasswordGate>} />
           <Route path="/admin" element={<Admin />} />
         </Routes>
       </div>

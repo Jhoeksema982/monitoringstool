@@ -2,6 +2,7 @@ import { useState } from "react";
 
 const StartScreen = ({ onStart }) => {
   const [selectedLocation, setSelectedLocation] = useState("");
+  const [selectedAge, setSelectedAge] = useState("");
   const [error, setError] = useState(null);
 
   const handleStart = (mode) => {
@@ -9,8 +10,13 @@ const StartScreen = ({ onStart }) => {
       setError("Selecteer eerst je locatie (PI).");
       return;
     }
+    if (!selectedAge) {
+      setError("Vertel hoe oud je bent.");
+      return;
+    }
     setError(null);
-    onStart(mode, selectedLocation);
+    const useNumbers = selectedAge === "ouder";
+    onStart(mode, selectedLocation, useNumbers);
   };
 
   return (
@@ -23,11 +29,11 @@ const StartScreen = ({ onStart }) => {
         />
 
         <h1 className="text-2xl font-bold mb-4">
-          Hallo! Kies wat voor bezoek dit is
+          Hallo! Vertel ons wie je bent
         </h1>
 
         <p className="mb-6 text-gray-200">
-          Kies je locatie en het type bezoek om te beginnen.
+          Kies je locatie en leeftijd om te beginnen.
         </p>
 
         {/* Locatie selectie */}
@@ -45,6 +51,39 @@ const StartScreen = ({ onStart }) => {
             <option value="Veenhuizen">PI Veenhuizen</option>
             <option value="Almelo">PI Almelo</option>
           </select>
+        </div>
+
+        {/* Leeftijd selectie */}
+        <div className="mb-6">
+          <p className="mb-2 text-white font-semibold">Hoe oud ben je?</p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button
+              className={`px-6 py-3 rounded-lg font-semibold transition ${
+                selectedAge === "jonger"
+                  ? "bg-yellow-400 text-teal-900"
+                  : "bg-teal-600 hover:bg-teal-500"
+              }`}
+              onClick={() => {
+                setSelectedAge("jonger");
+                setError(null);
+              }}
+            >
+              Minder dan 12 jaar
+            </button>
+            <button
+              className={`px-6 py-3 rounded-lg font-semibold transition ${
+                selectedAge === "ouder"
+                  ? "bg-yellow-400 text-teal-900"
+                  : "bg-teal-600 hover:bg-teal-500"
+              }`}
+              onClick={() => {
+                setSelectedAge("ouder");
+                setError(null);
+              }}
+            >
+              12 jaar of ouder
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -66,6 +105,13 @@ const StartScreen = ({ onStart }) => {
             onClick={() => handleStart("ouder_kind")}
           >
             Ouder-kind dagen
+          </button>
+
+          <button
+            className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-3 rounded-lg font-semibold disabled:opacity-50"
+            onClick={() => handleStart("extra_vader_kind")}
+          >
+            Extra vader-kindmoment
           </button>
         </div>
       </div>
