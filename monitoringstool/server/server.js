@@ -787,7 +787,7 @@ async function startServer() {
 export default app;
 
 // Only start the server when this file is executed directly (node server.js).
-// When imported by serverless platforms (Vercel), `startServer` will not be called.
+// When imported by serverless platforms (Vercel), the default export will be used.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   startServer();
 }
