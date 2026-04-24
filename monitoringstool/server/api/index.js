@@ -1,11 +1,11 @@
-// Vercel serverless function handler
-// Routes all /api/* requests through the Express app
-
-import dotenv from 'dotenv';
 import app from '../server.js';
 
-// Load environment variables
-dotenv.config();
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+};
 
-// Export handler for Vercel
 export default app;
