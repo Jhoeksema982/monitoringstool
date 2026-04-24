@@ -12,7 +12,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl || '', supabaseKey || '');
 
-app.get('/health', async (req, res) => {
+app.get('/api/health', async (req, res) => {
   try {
     const { error } = await supabase.from('questions').select('id').limit(1);
     res.json({ status: error ? 'error' : 'OK', database: error ? 'disconnected' : 'connected' });
@@ -21,7 +21,7 @@ app.get('/health', async (req, res) => {
   }
 });
 
-app.get('/questions', async (req, res) => {
+app.get('/api/questions', async (req, res) => {
   try {
     const { data, error } = await supabase.from('questions').select('*').order('created_at', { ascending: false });
     if (error) throw error;
@@ -31,7 +31,7 @@ app.get('/questions', async (req, res) => {
   }
 });
 
-app.post('/questions', async (req, res) => {
+app.post('/api/questions', async (req, res) => {
   try {
     const { title, description, category, priority, status, mode } = req.body;
     const { data, error } = await supabase.from('questions').insert({
@@ -52,7 +52,7 @@ app.post('/questions', async (req, res) => {
   }
 });
 
-app.put('/questions/:uuid', async (req, res) => {
+app.put('/api/questions/:uuid', async (req, res) => {
   try {
     const { uuid } = req.params;
     const { title, description, category, priority, status, mode } = req.body;
@@ -67,7 +67,7 @@ app.put('/questions/:uuid', async (req, res) => {
   }
 });
 
-app.delete('/questions/:uuid', async (req, res) => {
+app.delete('/api/questions/:uuid', async (req, res) => {
   try {
     const { uuid } = req.params;
     const { error } = await supabase.from('questions').delete().eq('uuid', uuid);
@@ -78,11 +78,9 @@ app.delete('/questions/:uuid', async (req, res) => {
   }
 });
 
-app.get('/responses/stats', async (req, res) => {
+app.get('/api/responses/stats', async (req, res) => {
   try {
-    const { location } = req.query;
-    let query = supabase.from('responses').select('question_uuid, response_data, survey_type');
-    const { data, error } = await query;
+    const { data, error } = await supabase.from('responses').select('question_uuid, response_data, survey_type');
     if (error) throw error;
 
     const byQuestion = {};
@@ -116,7 +114,7 @@ app.get('/responses/stats', async (req, res) => {
   }
 });
 
-app.post('/responses', async (req, res) => {
+app.post('/api/responses', async (req, res) => {
   try {
     const { responses, survey_type, location } = req.body;
     const submissionUuid = uuidv4();
@@ -147,7 +145,7 @@ app.post('/responses', async (req, res) => {
   }
 });
 
-app.get('/submissions', async (req, res) => {
+app.get('/api/submissions', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('submissions')
@@ -161,7 +159,7 @@ app.get('/submissions', async (req, res) => {
   }
 });
 
-app.get('/', (req, res) => {
+app.get('/api', (req, res) => {
   res.json({ message: 'Monitoringstool API', version: '1.0' });
 });
 

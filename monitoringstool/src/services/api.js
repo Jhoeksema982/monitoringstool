@@ -89,23 +89,23 @@ export const questionsApi = {
   // GET all questions (optional params: page, limit, category, status, priority, search, sortBy, sortOrder, mode)
   getAll: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
-    return apiService.get(`/questions${qs ? '?' + qs : ''}`);
+    return apiService.get(`/api/questions${qs ? '?' + qs : ''}`);
   },
 
   // CREATE a question
-  create: (question) => apiService.post('/questions', question),
+  create: (question) => apiService.post('/api/questions', question),
 
   // UPDATE by UUID
   update: (uuid, updates) =>
-    apiService.patch(`/questions/${uuid}`, updates),
+    apiService.patch(`/api/questions/${uuid}`, updates),
 
   // DELETE by UUID
   delete: (uuid) =>
-    apiService.delete(`/questions/${uuid}`),
+    apiService.delete(`/api/questions/${uuid}`),
 
   // REORDER
   reorder: (order) =>
-    apiService.post('/questions/reorder', { order }),
+    apiService.post('/api/questions/reorder', { order }),
 };
 
 /* -------------------------------------------------------
@@ -113,7 +113,7 @@ export const questionsApi = {
 ------------------------------------------------------- */
 export const responsesApi = {
   // Submit survey response
-  submit: (payload) => apiService.post('/responses', payload),
+  submit: (payload) => apiService.post('/api/responses', payload),
 
   // List responses (OLD - kept for compatibility if needed elsewhere)
   list: ({ page = 1, limit = 10, question_uuid, mode } = {}) => {
@@ -121,7 +121,7 @@ export const responsesApi = {
     if (question_uuid) params.question_uuid = question_uuid;
     if (mode) params.mode = mode;
     const qs = new URLSearchParams(params).toString();
-    return apiService.get(`/responses?${qs}`);
+    return apiService.get(`/api/responses?${qs}`);
   },
 
   // GET Submissions (Groups) - NEW
@@ -129,13 +129,13 @@ export const responsesApi = {
     const params = { page, limit };
     if (survey_type) params.survey_type = survey_type;
     const qs = new URLSearchParams(params).toString();
-    return apiService.get(`/submissions?${qs}`);
+    return apiService.get(`/api/submissions?${qs}`);
   },
 
   // Stats endpoint
   stats: (opts = {}) => {
     const qs = new URLSearchParams(opts).toString();
-    return apiService.get(`/responses/stats${qs ? '?' + qs : ''}`);
+    return apiService.get(`/api/responses/stats${qs ? '?' + qs : ''}`);
   },
 };
 
