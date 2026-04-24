@@ -1,7 +1,7 @@
 import { getAccessToken } from './auth';
 
-// Use the backend server API (falls back to relative /api on Vercel)
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+// Use relative /api for both local and Vercel production
+const API_BASE_URL = '';
 
 class ApiService {
   async get(endpoint) {
