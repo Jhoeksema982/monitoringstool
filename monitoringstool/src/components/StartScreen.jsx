@@ -6,6 +6,7 @@ const StartScreen = ({ onStart }) => {
   const [selectedAge, setSelectedAge] = useState("");
   const [error, setError] = useState(null);
   const [locations, setLocations] = useState([]);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     getLocations().then(setLocations).catch(() => setLocations([]));
@@ -53,23 +54,33 @@ const StartScreen = ({ onStart }) => {
         </p>
 
         {/* Locatie selectie */}
-        <div className="mb-6">
-          <select
-            value={selectedLocation}
-            onChange={(e) => {
-              setSelectedLocation(e.target.value);
-              if (e.target.value) setError(null);
-            }}
-            className="w-full p-3 rounded-lg text-gray-800 font-semibold"
+        <div className="mb-6 relative">
+          <button
+            onClick={() => setOpen(!open)}
+            className="w-full p-3 rounded-lg bg-white text-gray-800 font-semibold flex items-center justify-between"
           >
-            <option value="">-- Kies een PI --</option>
-            {locations.map(loc => (
-              <option key={loc.name} value={loc.name}>
-                PI {loc.name} ({loc.gender === "female" ? "vrouwelijk" : "mannelijk"})
-              </option>
-            ))}
-            <option value="demo">Test / Demo (niks opslaan)</option>
-          </select>
+            <span>{selectedLocation ? `PI ${selectedLocation}${selectedLocation !== "demo" ? ` (${getLocGender(selectedLocation) === "female" ? "vrouwelijk" : "mannelijk"})` : ""}` : "-- Kies een PI --"}</span>
+            <svg className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+          </button>
+          {open && (
+            <div className="absolute z-10 mt-1 w-full bg-white rounded-lg shadow-lg max-h-60 overflow-y-auto">
+              <button
+                className="w-full text-left px-4 py-2.5 text-gray-800 font-semibold hover:bg-teal-100 transition"
+                onClick={() => { setSelectedLocation(""); setOpen(false); setError(null); }}
+              >-- Kies een PI --</button>
+              {locations.map(loc => (
+                <button
+                  key={loc.name}
+                  className={`w-full text-left px-4 py-2.5 font-semibold transition ${selectedLocation === loc.name ? "bg-teal-200 text-teal-900" : "text-gray-800 hover:bg-teal-100"}`}
+                  onClick={() => { setSelectedLocation(loc.name); setOpen(false); setError(null); }}
+                >PI {loc.name} ({loc.gender === "female" ? "vrouwelijk" : "mannelijk"})</button>
+              ))}
+              <button
+                className={`w-full text-left px-4 py-2.5 font-semibold transition ${selectedLocation === "demo" ? "bg-teal-200 text-teal-900" : "text-gray-800 hover:bg-teal-100"}`}
+                onClick={() => { setSelectedLocation("demo"); setOpen(false); setError(null); }}
+              >Test / Demo (niks opslaan)</button>
+            </div>
+          )}
           {genderLabel && (
             <p className="text-sm text-gray-300 mt-1">Locatie: {genderLabel}</p>
           )}
