@@ -247,11 +247,12 @@ app.get('/api/questions',
         query = query.or(`title.ilike.${term},description.ilike.${term}`);
       }
 
-      if (!sortBy && optionalQuestionColumns.position) {
-        query = query.order('position', { ascending: true });
+      if (sortBy) {
+        const { column, ascending } = mapOrder(sortBy, sortOrder);
+        query = query.order(column, { ascending });
+      } else {
+        query = query.order('created_at', { ascending: false });
       }
-      const { column, ascending } = mapOrder(sortBy, sortOrder);
-      if (sortBy) query = query.order(column, { ascending });
 
       // Pagination (range is inclusive)
       query = query.range(offset, offset + limit - 1);
@@ -835,7 +836,7 @@ app.post('/api/responses',
   }
 );
 
-// Reorder questions (no-op placeholder so UI can "save order" without DB column)
+// Reorder questions — stores order via created_at (no extra column needed)
 app.post('/api/questions/reorder',
   authenticate,
   requireAdmin,
@@ -846,8 +847,10 @@ app.post('/api/questions/reorder',
       if (!isValid) {
         return res.status(400).json({ error: 'Invalid order payload' });
       }
+      const now = Date.now();
       for (const item of order) {
-        await supabase.from('questions').update({ position: item.position }).eq('uuid', item.uuid);
+        const timestamp = new Date(now + item.position * 1000).toISOString();
+        await supabase.from('questions').update({ created_at: timestamp }).eq('uuid', item.uuid);
       }
       return res.json({ message: 'Order saved' });
     } catch (error) {
