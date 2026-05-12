@@ -414,9 +414,13 @@ export default function StatsSection({
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {paginatedData.map((question) => {
                 const entries = Object.entries(question.counts || {});
-                const chartData = entries.map(([value, count]) => {
+                const merged = {};
+                entries.forEach(([value, count]) => {
                   const resolvedKey = resolveKey(value);
-                  const label = smileys.find((s) => s.key === resolvedKey)?.label || value;
+                  merged[resolvedKey] = (merged[resolvedKey] || 0) + Number(count);
+                });
+                const chartData = Object.entries(merged).map(([resolvedKey, count]) => {
+                  const label = smileys.find((s) => s.key === resolvedKey)?.label || resolvedKey;
                   return {
                     value: resolvedKey,
                     count,
@@ -437,7 +441,8 @@ export default function StatsSection({
                     </div>
 
                     <div className="h-56 w-full">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <div className="min-h-[250px]">
+                      <ResponsiveContainer width="100%" height={250}>
                         <BarChart data={chartData} margin={{ top: 5, right: 0, left: -10, bottom: 0 }}>
                           <XAxis dataKey="label" stroke="#e5e7eb" tick={{ fontSize: 11 }} />
                           <YAxis allowDecimals={false} stroke="#e5e7eb" tick={{ fontSize: 11 }} />
@@ -453,6 +458,7 @@ export default function StatsSection({
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
+                      </div>
                     </div>
                   </div>
               );
@@ -485,12 +491,16 @@ export default function StatsSection({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {paginatedData.map((question) => {
               const entries = Object.entries(question.counts || {});
-              const total = entries.reduce((sum, [, count]) => sum + Number(count), 0);
-              const resolvedEntries = entries.map(([value, count]) => {
+              const merged = {};
+              entries.forEach(([value, count]) => {
                 const resolvedKey = resolveKey(value);
-                const label = smileys.find((s) => s.key === resolvedKey)?.label || value;
-                return { rawKey: value, resolvedKey, label, count: Number(count) };
+                merged[resolvedKey] = (merged[resolvedKey] || 0) + Number(count);
               });
+              const resolvedEntries = Object.entries(merged).map(([resolvedKey, count]) => {
+                const label = smileys.find((s) => s.key === resolvedKey)?.label || resolvedKey;
+                return { resolvedKey, label, count };
+              });
+              const total = resolvedEntries.reduce((sum, e) => sum + e.count, 0);
               const pieData = resolvedEntries.map((e) => ({
                 name: e.label,
                 value: e.count,
@@ -500,6 +510,7 @@ export default function StatsSection({
               return (
                 <div key={question.question_uuid} className="bg-gradient-to-br from-teal-800/80 to-teal-700/70 border border-teal-600/40 rounded-xl p-4">
                   <h4 className="font-semibold text-sm mb-4 text-center">{question.question_title}</h4>
+                  <div className="min-h-[250px]">
                   <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
                       <Pie
@@ -518,6 +529,7 @@ export default function StatsSection({
                       <Tooltip />
                     </PieChart>
                   </ResponsiveContainer>
+                  </div>
                 </div>
               );
             })}

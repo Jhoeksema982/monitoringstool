@@ -112,6 +112,17 @@ app.delete('/api/questions/:uuid', authenticate, requireAdmin, async (req, res) 
   }
 });
 
+app.post('/api/questions/reorder', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const order = Array.isArray(req.body?.order) ? req.body.order : [];
+    const isValid = order.every(it => typeof it?.uuid === 'string');
+    if (!isValid) return res.status(400).json({ error: 'Invalid order payload' });
+    res.json({ message: 'Order accepted' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/responses/stats', async (req, res) => {
   try {
     const { location } = req.query;
