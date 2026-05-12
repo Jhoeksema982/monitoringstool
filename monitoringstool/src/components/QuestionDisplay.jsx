@@ -137,7 +137,7 @@ function OpenDisplay({ question, value, onChange, index }) {
 function MultipleChoiceDisplay({ question, value, onChange, index }) {
   const options = question?.options || [];
   return (
-    <div className="flex flex-col gap-3 w-full max-w-2xl">
+    <div className="flex flex-col gap-3 w-full max-w-2xl mx-auto">
       {options.map((opt, i) => (
         <label
           key={i}

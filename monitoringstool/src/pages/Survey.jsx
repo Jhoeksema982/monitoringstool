@@ -81,7 +81,7 @@ export default function Survey() {
                     (q.age_group === "all" || q.age_group === ageGroup || !q.age_group),
             ).map((q) => ({
                 ...q,
-                type: q.type || (ageGroup === "12_plus" ? "number" : "smiley"),
+                type: q.type === "smiley" && ageGroup === "12_plus" ? "number" : q.type,
             }));
             setQuestions(filteredQuestions);
             setError(null);
