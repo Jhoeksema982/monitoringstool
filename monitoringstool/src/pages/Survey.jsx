@@ -78,7 +78,6 @@ export default function Survey() {
             const response = await questionsApi.getAll({ mode, gender: parentGender });
             const filteredQuestions = (response.data || []).filter(
                 (q) =>
-                    q.uuid !== CONSENT_QUESTION_UUID &&
                     (q.age_group === "all" || q.age_group === ageGroup || !q.age_group),
             ).map((q) => ({
                 ...q,
