@@ -217,6 +217,17 @@ app.get('/api/submissions', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
+app.delete('/api/submissions/:uuid', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { uuid } = req.params;
+    const { error } = await supabase.from('submissions').delete().eq('uuid', uuid);
+    if (error) throw error;
+    res.json({ message: 'Submission deleted' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/submissions/export/csv', authenticate, requireAdmin, async (req, res) => {
   try {
     const { data, error } = await supabase

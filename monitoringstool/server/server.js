@@ -508,6 +508,23 @@ app.get('/api/submissions',
   }
 );
 
+// Delete a submission
+app.delete('/api/submissions/:uuid',
+  authenticate,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { uuid } = req.params;
+      const { error } = await supabase.from('submissions').delete().eq('uuid', uuid);
+      if (error) throw error;
+      res.json({ message: 'Submission deleted' });
+    } catch (error) {
+      console.error('Error deleting submission:', error);
+      res.status(500).json({ error: 'Failed to delete submission' });
+    }
+  }
+);
+
 // Locations API
 app.get('/api/locations', async (req, res) => {
   try {

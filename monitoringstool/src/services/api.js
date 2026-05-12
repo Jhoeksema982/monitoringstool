@@ -152,6 +152,9 @@ export const responsesApi = {
     return apiService.get(`/api/submissions?${qs}`);
   },
 
+  // DELETE submission by UUID
+  deleteSubmission: (uuid) => apiService.delete(`/api/submissions/${uuid}`),
+
   // Stats endpoint
   stats: (opts = {}) => {
     const qs = new URLSearchParams(opts).toString();

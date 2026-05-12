@@ -39,6 +39,7 @@ export default function ResponsesTable({
   onNextPage,
   expandedGroups,
   setExpandedGroups,
+  onDeleteSubmission,
 }) {
   
   // Filter submissions per type (regular / ouder_kind)
@@ -124,7 +125,17 @@ export default function ResponsesTable({
                           <td className="px-4 py-3 text-sm text-gray-200">{dateStr}</td>
                           <td className="px-4 py-3 text-sm font-semibold text-white">{locStr}</td>
                           <td className="px-4 py-3">{cleanResponses.length} vragen · {firstUser}</td>
-                          <td className="px-4 py-3 text-sm text-yellow-300">{isOpen ? "Verberg" : "Details"}</td>
+                          <td className="px-4 py-3 text-sm text-yellow-300 flex gap-2">
+                            {isOpen ? "Verberg" : "Details"}
+                            {onDeleteSubmission && (
+                              <button
+                                className="text-red-300 hover:text-red-200 ml-2"
+                                onClick={(e) => { e.stopPropagation(); if (confirm('Deze inzending verwijderen?')) onDeleteSubmission(sub.uuid); }}
+                              >
+                                Verwijder
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       ];
                       if (isOpen) {

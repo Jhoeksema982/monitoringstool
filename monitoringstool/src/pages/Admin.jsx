@@ -467,6 +467,16 @@ export default function Admin() {
         }
     };
 
+    const handleDeleteSubmission = async (uuid) => {
+        try {
+            await responsesApi.deleteSubmission(uuid);
+            setResponses((prev) => prev.filter((s) => s.uuid !== uuid));
+        } catch (e) {
+            console.error("Error deleting submission:", e);
+            alert("Verwijderen mislukt: " + e.message);
+        }
+    };
+
     const handleRefreshStats = () => {
         loadStats();
         loadGlobalStats();
@@ -937,6 +947,7 @@ export default function Admin() {
                 onNextPage={() => setRespPage((p) => p + 1)}
                 expandedGroups={expandedGroups}
                 setExpandedGroups={setExpandedGroups}
+                onDeleteSubmission={handleDeleteSubmission}
             />
         </div>
     );
