@@ -9,6 +9,7 @@ import ResponsesTable from "../components/ResponsesTable";
 import { questionsApi, responsesApi } from "../services/api";
 import { getSession, signInWithEmailPassword, signOut } from "../services/auth";
 import { CONSENT_QUESTION_UUID } from "../constants/consent";
+import { getLocations, createLocation, deleteLocation, updateLocation } from "../constants/locations";
 
 function SortableQuestionItem({ question, onDelete, onEditClick, onSaveEdit, isEditing, editForm, setEditForm }) {
     const { listeners, setNodeRef, transform, transition, setActivatorNodeRef } = useSortable({
@@ -112,6 +113,18 @@ function SortableQuestionItem({ question, onDelete, onEditClick, onSaveEdit, isE
                                 <option value="under_12">Onder 12 jaar</option>
                                 <option value="12_plus">12 jaar of ouder</option>
                             </select>
+                            <select
+                                className="flex-1 p-2 rounded text-gray-900"
+                                value={editForm.mode}
+                                onChange={(e) => setEditForm((f) => ({ ...f, mode: e.target.value }))}
+                            >
+                                <option value="regular">Regulier</option>
+                                <option value="ouder_kind">Ouder-kind</option>
+                                <option value="extra_vader_kind">Extra vader-kind</option>
+                            </select>
+                        </div>
+                        <div className="text-xs text-gray-400">
+                            Gebruik <code>{`{parent}`}</code> voor &quot;papa&quot;/&quot;mama&quot;
                         </div>
                         {editForm.type === "multiple_choice" && (
                             <textarea
@@ -130,8 +143,11 @@ function SortableQuestionItem({ question, onDelete, onEditClick, onSaveEdit, isE
                         <div className="font-semibold">{question.title}</div>
                         {question.description && <div className="text-sm text-gray-300">{question.description}</div>}
                         <div className="text-xs text-gray-400 mt-1">
-                            {question.category} | {question.priority} | {question.status} | {question.type} |{" "}
+                            {question.category} | {question.priority} | {question.status} | {question.type || "smiley"} |{" "}
                             {question.age_group || "all"}
+                            {question.gender && <span className={`ml-1 font-semibold ${question.gender === "female" ? "text-pink-300" : "text-blue-300"}`}>
+                                [{question.gender === "female" ? "Vrouw" : question.gender === "male" ? "Man" : "Alle"}]
+                            </span>}
                         </div>
                     </>
                 )}
@@ -184,6 +200,7 @@ export default function Admin() {
         type: "smiley",
         options: null,
         age_group: "all",
+        mode: "regular",
     });
     const [showTypeEditModal, setShowTypeEditModal] = useState(false);
     const [emailInput, setEmailInput] = useState("");
@@ -214,6 +231,12 @@ export default function Admin() {
     const [adminEmail, setAdminEmail] = useState("");
     const [adminPassword, setAdminPassword] = useState("");
     const [adminList, setAdminList] = useState([]);
+    const [reorderError, setReorderError] = useState(null);
+    const [updateError, setUpdateError] = useState(null);
+    const [piList, setPiList] = useState([]);
+    const [newPiName, setNewPiName] = useState("");
+    const [newPiGender, setNewPiGender] = useState("male");
+    const [filterGender, setFilterGender] = useState("all");
 
     const currentPasswordValue = localStorage.getItem("survey_password") || import.meta.env.VITE_ACCESS_PASSWORD || "";
 
@@ -226,6 +249,10 @@ export default function Admin() {
     const adminEmails = adminList.map((a) => a.email.toLowerCase());
     const allAllowedEmails = [...allowedEmails, ...adminEmails];
     const isAuthorized = allAllowedEmails.length === 0 ? false : allAllowedEmails.includes(userEmail);
+
+    useEffect(() => {
+        getLocations().then(setPiList).catch(() => setPiList([]));
+    }, []);
 
     useEffect(() => {
         (async () => {
@@ -303,8 +330,8 @@ export default function Admin() {
             if (stored) {
                 setAdminList(JSON.parse(stored));
             } else {
-                const envEmail = import.meta.env.VITE_ADMIN_EMAILS || "";
-                const defaultAdmins = envEmail ? [{ email: envEmail, createdAt: new Date().toISOString() }] : [];
+                const envEmails = (import.meta.env.VITE_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean);
+                const defaultAdmins = envEmails.map(email => ({ email, createdAt: new Date().toISOString() }));
                 setAdminList(defaultAdmins);
                 localStorage.setItem("survey_admins", JSON.stringify(defaultAdmins));
             }
@@ -537,6 +564,8 @@ export default function Admin() {
             </div>
 
             {error && <div className="bg-red-500 text-white p-3 rounded mb-4">{error}</div>}
+            {reorderError && <div className="bg-red-500 text-white p-3 rounded mb-4">{reorderError}</div>}
+            {updateError && <div className="bg-red-500 text-white p-3 rounded mb-4">{updateError}</div>}
 
             <div className="bg-teal-700 p-4 rounded-lg mb-6">
                 <h2 className="text-lg font-semibold mb-3">Wachtwoord wijzigen</h2>
@@ -694,33 +723,140 @@ export default function Admin() {
                 </div>
             )}
 
+            <div className="bg-teal-700 p-4 rounded-lg mb-6">
+              <h2 className="text-lg font-semibold mb-3">PI's beheren</h2>
+              <div className="space-y-2 mb-3">
+                  {piList.map((pi, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-teal-600 p-2 rounded">
+                    <span className="text-sm">
+                      PI {pi.name} <span className="text-gray-300">({pi.gender === "female" ? "vrouwelijk" : "mannelijk"})</span>
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          const newGender = pi.gender === "male" ? "female" : "male";
+                          try {
+                            await updateLocation(pi.name, newGender);
+                            setPiList(prev => prev.map((p, i) => i === idx ? { ...p, gender: newGender } : p));
+                          } catch (e) {
+                            alert(e.message);
+                          }
+                        }}
+                        className="text-yellow-300 text-xs hover:underline"
+                      >
+                        {pi.gender === "male" ? "Zet op vrouwelijk" : "Zet op mannelijk"}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await deleteLocation(pi.name);
+                            setPiList(prev => prev.filter((_, i) => i !== idx));
+                          } catch (e) {
+                            alert(e.message);
+                          }
+                        }}
+                        className="text-red-300 text-xs hover:underline"
+                      >
+                        Verwijder
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    value={newPiName}
+                    onChange={(e) => setNewPiName(e.target.value)}
+                    placeholder="PI naam"
+                    className="w-full p-2 rounded text-gray-800 text-sm"
+                  />
+                </div>
+                <select
+                  value={newPiGender}
+                  onChange={(e) => setNewPiGender(e.target.value)}
+                  className="p-2 rounded text-gray-800 text-sm"
+                >
+                  <option value="male">Mannelijk</option>
+                  <option value="female">Vrouwelijk</option>
+                </select>
+                <button
+                  className="bg-green-500 hover:bg-green-600 px-3 py-2 rounded font-semibold text-sm whitespace-nowrap"
+                  onClick={async () => {
+                    const name = newPiName.trim();
+                    if (!name) return;
+                    if (piList.find(p => p.name === name)) {
+                      alert("Deze PI bestaat al.");
+                      return;
+                    }
+                    try {
+                      await createLocation(name, newPiGender);
+                      setPiList(prev => [...prev, { name, gender: newPiGender }]);
+                      setNewPiName("");
+                      setNewPiGender("male");
+                    } catch (e) {
+                      alert(e.message);
+                    }
+                  }}
+                >
+                  Toevoegen
+                </button>
+              </div>
+            </div>
+
             <QuestionForm onAdd={addQuestion} />
 
             <div className="mt-6">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                     <h2 className="text-xl font-semibold">Vragen</h2>
-                    <button
-                        className="bg-teal-600 hover:bg-teal-500 px-3 py-1 rounded disabled:opacity-50"
-                        disabled={savingOrder}
-                        onClick={async () => {
-                            try {
-                                setSavingOrder(true);
-                                const order = questions.map((q, i) => ({ uuid: q.uuid, position: i + 1 }));
-                                await questionsApi.reorder(order);
-                            } catch (e) {
-                                console.error("Reorder failed", e);
-                            } finally {
-                                setSavingOrder(false);
-                            }
-                        }}
-                    >
-                        {savingOrder ? "Opslaan..." : "Volgorde opslaan"}
-                    </button>
+                    <div className="flex gap-2">
+                        <div className="flex gap-1 bg-teal-800 rounded-lg p-1">
+                            {[
+                                { value: "all", label: "Alle" },
+                                { value: "male", label: "Mannen" },
+                                { value: "female", label: "Vrouwen" },
+                            ].map((opt) => (
+                                <button
+                                    key={opt.value}
+                                    onClick={() => setFilterGender(opt.value)}
+                                    className={`px-3 py-1 rounded text-sm font-semibold transition ${
+                                        filterGender === opt.value
+                                            ? "bg-yellow-400 text-teal-900"
+                                            : "text-gray-300 hover:text-white"
+                                    }`}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                        <button
+                            className="bg-teal-600 hover:bg-teal-500 px-3 py-1 rounded disabled:opacity-50 text-sm"
+                            disabled={savingOrder}
+                            onClick={async () => {
+                                try {
+                                    setSavingOrder(true);
+                                    setReorderError(null);
+                                    const order = questions.map((q, i) => ({ uuid: q.uuid, position: i + 1 }));
+                                    await questionsApi.reorder(order);
+                                } catch (e) {
+                                    console.error("Reorder failed", e);
+                                    setReorderError("Volgorde opslaan mislukt");
+                                } finally {
+                                    setSavingOrder(false);
+                                }
+                            }}
+                        >
+                            {savingOrder ? "Opslaan..." : "Volgorde opslaan"}
+                        </button>
+                    </div>
                 </div>
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                     <SortableContext items={questions.map((q) => q.uuid)} strategy={verticalListSortingStrategy}>
                         <ul className="space-y-4">
-                            {questions.map((q) => (
+                            {questions
+                                .filter((q) => filterGender === "all" || q.gender === filterGender || q.gender === "all")
+                                .map((q) => (
                                 <SortableQuestionItem
                                     key={q.uuid}
                                     question={q}
@@ -741,6 +877,7 @@ export default function Admin() {
                                             type: q?.type || "smiley",
                                             options: q?.options || null,
                                             age_group: q?.age_group || "all",
+                                            mode: q?.mode || "regular",
                                         });
                                     }}
                                     onSaveEdit={async () => {
@@ -754,6 +891,7 @@ export default function Admin() {
                                                 type: editForm.type,
                                                 options: editForm.type === "multiple_choice" ? editForm.options : null,
                                                 age_group: editForm.age_group,
+                                                mode: editForm.mode,
                                             };
                                             const result = await questionsApi.update(q.uuid, payload);
                                             const updated = result?.data || payload;
@@ -763,6 +901,7 @@ export default function Admin() {
                                             setEditingUuid(null);
                                         } catch (e) {
                                             console.error("Update failed", e);
+                                            setUpdateError("Vraag bijwerken mislukt");
                                         }
                                     }}
                                     isEditing={editingUuid === q.uuid}

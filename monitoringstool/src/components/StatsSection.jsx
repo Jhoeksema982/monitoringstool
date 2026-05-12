@@ -4,6 +4,14 @@ import jsPDF from "jspdf";
 import { Download } from "lucide-react";
 import { smileys } from "../constants/ratings";
 import { CONSENT_QUESTION_UUID } from "../constants/consent";
+import { getLocations } from "../constants/locations";
+
+const DEFAULT_LOCATIONS = [
+  { key: "", label: "Alle locaties" },
+  { key: "Zaanstad", label: "PI Zaanstad" },
+  { key: "Veenhuizen", label: "PI Veenhuizen" },
+  { key: "Almelo", label: "PI Almelo" },
+];
 
 const COLOR_BY_VALUE = {
   rood: "#f05c5c",
@@ -12,6 +20,23 @@ const COLOR_BY_VALUE = {
   lichtgroen: "#b5ea90",
   groen: "#3ed474",
 };
+
+const LABEL_TO_KEY = {
+  "Helemaal niet leuk": "rood",
+  "Niet leuk": "beige",
+  "Gewoon": "geel",
+  "Leuk": "lichtgroen",
+  "Heel leuk": "groen",
+  "1 - Helemaal niet leuk": "rood",
+  "2 - Niet leuk": "beige",
+  "3 - Gewoon": "geel",
+  "4 - Leuk": "lichtgroen",
+  "5 - Heel leuk": "groen",
+};
+
+function resolveKey(value) {
+  return LABEL_TO_KEY[value] || value;
+}
 
 // Values for weighted average calculation (1 = Worst, 5 = Best)
 const WEIGHTS = {
@@ -27,12 +52,7 @@ const TABS = [
   { key: "ouder_kind", label: "Ouder-kind dagen" },
 ];
 
-const LOCATIONS = [
-  { key: "", label: "Alle locaties" },
-  { key: "Zaanstad", label: "PI Zaanstad" },
-  { key: "Veenhuizen", label: "PI Veenhuizen" },
-  { key: "Almelo", label: "PI Almelo" },
-];
+
 
 export default function StatsSection({ 
   statsData, 
@@ -49,6 +69,20 @@ export default function StatsSection({
   const [page, setPage] = useState(1);
   const [chartType, setChartType] = useState("bar");
   const [isExporting, setIsExporting] = useState(false);
+  const [locations, setLocations] = useState(DEFAULT_LOCATIONS);
+
+  useEffect(() => {
+    getLocations().then(list => {
+      if (list && list.length > 0) {
+        const dynamic = [
+          { key: "", label: "Alle locaties" },
+          ...list.map(l => ({ key: l.name, label: `PI ${l.name}` })),
+        ];
+        setLocations(dynamic);
+        setCompLocation(list[0].name);
+      }
+    }).catch(() => {});
+  }, []);
 
   // --- Comparison Chart State ---
   const [compLocation, setCompLocation] = useState("Zaanstad");
@@ -94,7 +128,7 @@ export default function StatsSection({
       
       for (let i = 0; i < paginatedData.length; i++) {
         const q = paginatedData[i];
-        const entries = Object.entries(q.counts || {}).filter(([v]) => COLOR_BY_VALUE[v]);
+        const entries = Object.entries(q.counts || {});
         const total = entries.reduce((sum, [, c]) => sum + Number(c), 0);
         
         pdf.setFontSize(11);
@@ -102,40 +136,63 @@ export default function StatsSection({
         pdf.text(`${i + 1}. ${q.question_title}`, 14, yPos);
         
         if (chartType === "pie") {
-          // Colored blocks with percentages
-          let blockX = 14;
+          const pieRadius = 10;
+          const pieCx = 30;
+          const pieCy = yPos + 14;
+
+          let startAngle = 0;
+          let legendX = 55;
           entries.forEach(([key, count]) => {
-            const label = smileys.find(s => s.key === key)?.label || key;
-            const color = COLOR_BY_VALUE[key];
+            const sliceAngle = (Number(count) / total) * 360;
+            const resolvedKey = resolveKey(key);
+            const color = COLOR_BY_VALUE[resolvedKey];
             const pct = total > 0 ? Math.round((Number(count) / total) * 100) : 0;
-            
-            if (color) {
+
+            if (color && sliceAngle > 0) {
               const r = parseInt(color.slice(1, 3), 16);
               const g = parseInt(color.slice(3, 5), 16);
-              const bl = parseInt(color.slice(5, 7), 16);
-              
-              pdf.setFillColor(r, g, bl);
-              pdf.rect(blockX, yPos + 4, 15, 12, "F");
-              
-              pdf.setFontSize(8);
-              pdf.setTextColor(255, 255, 255);
-              pdf.text(`${pct}%`, blockX + 7.5, yPos + 10, { align: "center" });
-              
-              blockX += 17;
+              const b = parseInt(color.slice(5, 7), 16);
+
+              const sliceRad = sliceAngle * Math.PI / 180;
+              const startRad = (startAngle - 90) * Math.PI / 180;
+              const segments = Math.max(3, Math.ceil(sliceAngle / 5));
+
+              const pts = [];
+              const x1 = pieCx + pieRadius * Math.cos(startRad);
+              const y1 = pieCy + pieRadius * Math.sin(startRad);
+              pts.push([x1 - pieCx, y1 - pieCy]);
+
+              let prevX = x1, prevY = y1;
+              for (let i = 1; i <= segments; i++) {
+                const angle = startRad + sliceRad * (i / segments);
+                const x = pieCx + pieRadius * Math.cos(angle);
+                const y = pieCy + pieRadius * Math.sin(angle);
+                pts.push([x - prevX, y - prevY]);
+                prevX = x; prevY = y;
+              }
+              pts.push([pieCx - prevX, pieCy - prevY]);
+
+              pdf.setFillColor(r, g, b);
+              pdf.setDrawColor(255, 255, 255);
+              pdf.setLineWidth(0.3);
+              pdf.lines(pts, pieCx, pieCy, [1, 1], "FD");
+
+              startAngle += sliceAngle;
             }
-          });
-          
-          // Counts
-          blockX = 14;
-          entries.forEach(([key, count]) => {
-            const label = smileys.find(s => s.key === key)?.label || key;
+
+            const label = smileys.find(s => s.key === resolvedKey)?.label || key;
+            const c = COLOR_BY_VALUE[resolvedKey];
+            if (c) {
+              pdf.setFillColor(parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16));
+              pdf.rect(legendX, yPos + 3, 4, 4, "F");
+            }
             pdf.setFontSize(7);
             pdf.setTextColor(80);
-            pdf.text(`${label}: ${count}`, blockX, yPos + 22);
-            blockX += 35;
+            pdf.text(`${label}: ${pct}%`, legendX + 6, yPos + 6);
+            legendX += 28;
           });
-          
-          yPos += 30;
+
+          yPos += 28;
         } else {
           // Horizontal bars
           const barStartX = 14;
@@ -143,8 +200,9 @@ export default function StatsSection({
           let barY = yPos + 4;
           
           entries.forEach(([key, count]) => {
-            const label = smileys.find(s => s.key === key)?.label || key;
-            const color = COLOR_BY_VALUE[key];
+            const resolvedKey = resolveKey(key);
+            const label = smileys.find(s => s.key === resolvedKey)?.label || key;
+            const color = COLOR_BY_VALUE[resolvedKey];
             const pct = total > 0 ? Math.round((Number(count) / total) * 100) : 0;
             
             if (color) {
@@ -193,15 +251,14 @@ export default function StatsSection({
     let totalCount = 0;
     
     Object.entries(question.counts).forEach(([key, count]) => {
-      // Ensure count is treated as a number
       const numCount = Number(count);
-      if (WEIGHTS[key] && numCount > 0) {
-        totalScore += WEIGHTS[key] * numCount;
+      const resolvedKey = resolveKey(key);
+      if (WEIGHTS[resolvedKey] && numCount > 0) {
+        totalScore += WEIGHTS[resolvedKey] * numCount;
         totalCount += numCount;
       }
     });
 
-    // Return Number for Recharts
     return totalCount === 0 ? null : Number((totalScore / totalCount).toFixed(2));
   };
 
@@ -324,7 +381,7 @@ export default function StatsSection({
             onChange={(e) => onLocationChange(e.target.value)}
             className="bg-teal-600 hover:bg-teal-500 text-white p-2 rounded cursor-pointer border-none outline-none font-semibold"
           >
-            {LOCATIONS.map((loc) => (
+            {locations.map((loc) => (
               <option key={loc.key} value={loc.key} className="bg-teal-800">
                 {loc.label}
               </option>
@@ -356,13 +413,12 @@ export default function StatsSection({
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {paginatedData.map((question) => {
-                const entries = Object.entries(question.counts || {}).filter(
-                  ([value]) => COLOR_BY_VALUE[value]
-                );
+                const entries = Object.entries(question.counts || {});
                 const chartData = entries.map(([value, count]) => {
-                  const label = smileys.find((s) => s.key === value)?.label || value;
+                  const resolvedKey = resolveKey(value);
+                  const label = smileys.find((s) => s.key === resolvedKey)?.label || value;
                   return {
-                    value,
+                    value: resolvedKey,
                     count,
                     label,
                   };
@@ -428,18 +484,18 @@ export default function StatsSection({
 ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {paginatedData.map((question) => {
-              const entries = Object.entries(question.counts || {}).filter(
-                ([value]) => COLOR_BY_VALUE[value],
-              );
+              const entries = Object.entries(question.counts || {});
               const total = entries.reduce((sum, [, count]) => sum + Number(count), 0);
-              const pieData = entries.map(([value, count]) => {
-                const label = smileys.find((s) => s.key === value)?.label || value;
-                return {
-                  name: label,
-                  value: Number(count),
-                  percentage: total > 0 ? ((Number(count) / total) * 100).toFixed(1) : 0,
-                };
+              const resolvedEntries = entries.map(([value, count]) => {
+                const resolvedKey = resolveKey(value);
+                const label = smileys.find((s) => s.key === resolvedKey)?.label || value;
+                return { rawKey: value, resolvedKey, label, count: Number(count) };
               });
+              const pieData = resolvedEntries.map((e) => ({
+                name: e.label,
+                value: e.count,
+                percentage: total > 0 ? ((e.count / total) * 100).toFixed(1) : 0,
+              }));
 
               return (
                 <div key={question.question_uuid} className="bg-gradient-to-br from-teal-800/80 to-teal-700/70 border border-teal-600/40 rounded-xl p-4">
@@ -456,7 +512,7 @@ export default function StatsSection({
                         label={({ name, percentage }) => `${name}: ${percentage}%`}
                       >
                         {pieData.map((entry, index) => (
-                          <Cell key={index} fill={COLOR_BY_VALUE[entries[index][0]]} />
+                          <Cell key={index} fill={COLOR_BY_VALUE[resolvedEntries[index].resolvedKey] || "#60a5fa"} />
                         ))}
                       </Pie>
                       <Tooltip />
@@ -483,11 +539,11 @@ export default function StatsSection({
                 onChange={(e) => setCompLocation(e.target.value)}
                 className="bg-teal-600 hover:bg-teal-500 text-white p-2 rounded cursor-pointer border-none outline-none font-semibold"
              >
-               {LOCATIONS.filter(l => l.key !== "").map((loc) => (
-                 <option key={loc.key} value={loc.key} className="bg-teal-800">
-                   {loc.label}
-                 </option>
-               ))}
+                {locations.filter(l => l.key !== "").map((loc) => (
+                  <option key={loc.key} value={loc.key} className="bg-teal-800">
+                    {loc.label}
+                  </option>
+                ))}
              </select>
           </div>
         </div>

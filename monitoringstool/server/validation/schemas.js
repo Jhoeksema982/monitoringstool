@@ -48,12 +48,41 @@ export const questionSchema = Joi.object({
     }),
     
   mode: Joi.string()
-    .valid('regular', 'ouder_kind')
+    .valid('regular', 'ouder_kind', 'extra_vader_kind')
     .default('regular')
     .messages({
-      'any.only': 'Mode must be regular or ouder_kind'
+      'any.only': 'Mode must be regular, ouder_kind, or extra_vader_kind'
     }),
-    
+
+  type: Joi.string()
+    .valid('smiley', 'number', 'scale', 'boolean', 'open', 'multiple_choice')
+    .default('smiley')
+    .messages({
+      'any.only': 'Type must be smiley, number, scale, boolean, open, or multiple_choice'
+    }),
+
+  options: Joi.array()
+    .items(Joi.string().trim().max(500))
+    .allow(null)
+    .optional()
+    .messages({
+      'array.base': 'Options must be an array of strings'
+    }),
+
+  age_group: Joi.string()
+    .valid('all', 'under_12', '12_plus')
+    .default('all')
+    .messages({
+      'any.only': 'Age group must be all, under_12, or 12_plus'
+    }),
+
+  gender: Joi.string()
+    .valid('male', 'female', 'all')
+    .default('all')
+    .messages({
+      'any.only': 'Gender must be male, female, or all'
+    }),
+
   created_by: Joi.string()
     .trim()
     .max(100)
@@ -118,6 +147,35 @@ export const questionUpdateSchema = Joi.object({
     .optional()
     .messages({
       'any.only': 'Status must be active, inactive, or archived'
+    }),
+
+  type: Joi.string()
+    .valid('smiley', 'number', 'scale', 'boolean', 'open', 'multiple_choice')
+    .optional()
+    .messages({
+      'any.only': 'Type must be one of: smiley, number, scale, boolean, open, multiple_choice'
+    }),
+
+  options: Joi.array()
+    .items(Joi.string().trim().max(500))
+    .allow(null)
+    .optional()
+    .messages({
+      'array.base': 'Options must be an array of strings'
+    }),
+
+  age_group: Joi.string()
+    .valid('all', 'under_12', '12_plus')
+    .optional()
+    .messages({
+      'any.only': 'Age group must be all, under_12, or 12_plus'
+    }),
+
+  gender: Joi.string()
+    .valid('male', 'female', 'all')
+    .optional()
+    .messages({
+      'any.only': 'Gender must be male, female, or all'
     })
 });
 
@@ -174,10 +232,17 @@ export const questionsQuerySchema = Joi.object({
     }),
     
   mode: Joi.string()
-    .valid('regular', 'ouder_kind')
+    .valid('regular', 'ouder_kind', 'extra_vader_kind')
     .optional()
     .messages({
-      'any.only': 'Mode must be regular or ouder_kind'
+      'any.only': 'Mode must be regular, ouder_kind, or extra_vader_kind'
+    }),
+
+  gender: Joi.string()
+    .valid('male', 'female', 'all')
+    .optional()
+    .messages({
+      'any.only': 'Gender must be male, female, or all'
     }),
     
   priority: Joi.string()
@@ -252,16 +317,14 @@ export const questionResponseSchema = Joi.object({
 export const batchQuestionResponsesSchema = Joi.object({
   responses: Joi.array().items(questionResponseSchema).min(1).required(),
   survey_type: Joi.string()
-    .valid('regular', 'ouder_kind')
+    .valid('regular', 'ouder_kind', 'extra_vader_kind')
     .default('regular')
     .messages({
-      'any.only': 'Survey type must be regular or ouder_kind'
+      'any.only': 'Survey type must be regular, ouder_kind, or extra_vader_kind'
     }),
   location: Joi.string()
-    .valid('Zaanstad', 'Veenhuizen', 'Almelo')
     .required()
     .messages({
-      'any.only': 'Selecteer een geldige locatie (Zaanstad, Veenhuizen of Almelo)',
       'any.required': 'Locatie is verplicht'
     }),
 });

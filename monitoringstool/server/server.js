@@ -8,6 +8,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 // Validation
+import Joi from 'joi';
 import {
   questionSchema,
   questionUpdateSchema,
@@ -30,13 +31,22 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Runtime flag to detect whether the database has the `mode` column on `questions`.
-let hasModeColumn = false;
+// Runtime flags to detect which optional columns exist on `questions`.
+const optionalQuestionColumns = {
+  mode: false,
+  type: false,
+  options: false,
+  age_group: false,
+  gender: false,
+};
 
-// Helper to build the select string for questions depending on whether `mode` exists.
 function questionSelectFields() {
   const base = ['uuid', 'title', 'description', 'category', 'priority', 'status', 'created_at', 'updated_at', 'created_by'];
-  if (hasModeColumn) base.splice(6, 0, 'mode'); // insert mode before created_at
+  if (optionalQuestionColumns.mode) base.splice(5, 0, 'mode');
+  if (optionalQuestionColumns.type) base.splice(6, 0, 'type');
+  if (optionalQuestionColumns.options) base.splice(7, 0, 'options');
+  if (optionalQuestionColumns.age_group) base.splice(8, 0, 'age_group');
+  if (optionalQuestionColumns.gender) base.splice(9, 0, 'gender');
   return base.join(', ');
 }
 
@@ -171,18 +181,19 @@ async function testConnection() {
     }
 
     console.log('✅ Supabase connection successful');
-    // detect whether 'mode' column exists on questions table
-    try {
-      const { error: modeErr } = await supabase
-        .from('questions')
-        .select('mode')
-        .limit(1);
-      hasModeColumn = !modeErr;
-    } catch (e) {
-      hasModeColumn = false;
+    // detect which optional columns exist on the questions table
+    for (const col of Object.keys(optionalQuestionColumns)) {
+      try {
+        const { error: colErr } = await supabase
+          .from('questions')
+          .select(col)
+          .limit(1);
+        optionalQuestionColumns[col] = !colErr;
+      } catch {
+        optionalQuestionColumns[col] = false;
+      }
     }
-
-    console.log('mode column present:', hasModeColumn);
+    console.log('optional columns present:', optionalQuestionColumns);
     return true;
   } catch (e) {
     console.error('❌ Supabase connection error:', e.message);
@@ -197,7 +208,7 @@ app.get('/api/questions',
   validateQuery(questionsQuerySchema),
   async (req, res) => {
     try {
-        const { page, limit, category, status, priority, search, sortBy, sortOrder, mode } = req.query;
+        const { page, limit, category, status, priority, search, sortBy, sortOrder, mode, gender } = req.query;
       const offset = (page - 1) * limit;
 
         let query = supabase
@@ -208,7 +219,7 @@ app.get('/api/questions',
       if (status) query = query.eq('status', status);
       if (priority) query = query.eq('priority', priority);
       if (mode) {
-        if (hasModeColumn) {
+        if (optionalQuestionColumns.mode) {
           query = query.eq('mode', mode);
         } else {
           // Column not present: treat legacy rows as `regular`.
@@ -217,6 +228,16 @@ app.get('/api/questions',
             return res.json({ data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: page > 1 } });
           }
           // mode === 'regular' and column missing -> no filter needed (all legacy rows are regular)
+        }
+      }
+      if (gender) {
+        if (optionalQuestionColumns.gender) {
+          // gender=all means: show questions for this gender AND questions with gender=all
+          if (gender === 'all') {
+            query = query.in('gender', ['all', 'male', 'female']);
+          } else {
+            query = query.in('gender', [gender, 'all']);
+          }
         }
       }
       if (search) {
@@ -299,14 +320,17 @@ app.post('/api/questions',
         priority: req.body.priority || 'medium',
         status: req.body.status || 'active',
         mode: req.body.mode || 'regular',
+        type: req.body.type || 'smiley',
+        options: req.body.options || null,
+        age_group: req.body.age_group || 'all',
         created_by: req.body.created_by || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
-      // If the DB does not have the `mode` column, don't include it in the insert payload.
-      if (!hasModeColumn) {
-        delete questionData.mode;
+      // Strip columns that don't exist in the database
+      for (const col of ['mode', 'type', 'options', 'age_group', 'gender']) {
+        if (!optionalQuestionColumns[col]) delete questionData[col];
       }
 
       const { data, error } = await supabase
@@ -353,9 +377,11 @@ app.put('/api/questions/:uuid',
         return res.status(400).json({ error: 'No valid fields to update' });
       }
 
-      // If DB lacks `mode`, strip any mode updates
-      if (!hasModeColumn && Object.prototype.hasOwnProperty.call(updates, 'mode')) {
-        delete updates.mode;
+      // Strip columns that don't exist in the database
+      for (const col of ['mode', 'type', 'options', 'age_group', 'gender']) {
+        if (!optionalQuestionColumns[col] && Object.prototype.hasOwnProperty.call(updates, col)) {
+          delete updates[col];
+        }
       }
 
       const { data, error } = await supabase
@@ -420,12 +446,16 @@ const { error } = await supabase
 app.get('/api/submissions', 
   authenticate,
   requireAdmin,
+  validateQuery(Joi.object({
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(100).default(10),
+    survey_type: Joi.string().valid('regular', 'ouder_kind', 'extra_vader_kind').optional(),
+  })),
   async (req, res) => {
     try {
-      const { page = 1, limit = 10, survey_type } = req.query;
+      const { page, limit, survey_type } = req.query;
       const offset = (page - 1) * limit;
 
-      // 1. Haal de groepen (submissions) op
       let query = supabase
         .from('submissions')
         .select('*, responses(uuid, question_uuid, response_data, user_identifier)', { count: 'exact' })
@@ -439,7 +469,6 @@ app.get('/api/submissions',
       const { data, error, count } = await query;
       if (error) throw error;
 
-      // 2. Haal de vraag-titels op om de antwoorden leesbaar te maken
       const allResponseUuids = (data || []).flatMap(sub => sub.responses.map(r => r.question_uuid));
       const uniqueQ_Uuids = [...new Set(allResponseUuids)];
       
@@ -452,7 +481,6 @@ app.get('/api/submissions',
         (qData || []).forEach(q => titlesMap[q.uuid] = q.title);
       }
 
-      // Voeg titels toe aan de nested responses
       const enrichedData = data.map(sub => ({
         ...sub,
         responses: sub.responses.map(r => ({
@@ -464,11 +492,11 @@ app.get('/api/submissions',
       res.json({
         data: enrichedData,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page,
+          limit,
           total: count || 0,
           totalPages: Math.ceil((count || 0) / limit),
-          hasNext: (offset + limit) < count,
+          hasNext: (offset + limit) < (count || 0),
           hasPrev: page > 1
         }
       });
@@ -476,6 +504,128 @@ app.get('/api/submissions',
     } catch (error) {
       console.error('Error fetching submissions:', error);
       res.status(500).json({ error: 'Failed to fetch submissions' });
+    }
+  }
+);
+
+// Locations API
+app.get('/api/locations', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('locations').select('name, gender').order('name');
+    if (error) throw error;
+    res.json({ data: data || [] });
+  } catch (error) {
+    console.error('Error fetching locations:', error);
+    res.status(500).json({ error: 'Failed to fetch locations' });
+  }
+});
+
+app.post('/api/locations',
+  authenticate,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { name, gender } = req.body;
+      if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+      if (!['male', 'female'].includes(gender)) return res.status(400).json({ error: 'Gender must be male or female' });
+      const { data, error } = await supabase.from('locations').insert({ name: name.trim(), gender }).select().single();
+      if (error) {
+        if (String(error.message).toLowerCase().includes('duplicate')) {
+          return res.status(409).json({ error: 'Location already exists' });
+        }
+        throw error;
+      }
+      res.status(201).json({ message: 'Location created', data });
+    } catch (error) {
+      console.error('Error creating location:', error);
+      res.status(500).json({ error: 'Failed to create location' });
+    }
+  }
+);
+
+app.delete('/api/locations/:name',
+  authenticate,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { name } = req.params;
+      const { error } = await supabase.from('locations').delete().eq('name', name);
+      if (error) throw error;
+      res.json({ message: 'Location deleted' });
+    } catch (error) {
+      console.error('Error deleting location:', error);
+      res.status(500).json({ error: 'Failed to delete location' });
+    }
+  }
+);
+
+app.put('/api/locations/:name',
+  authenticate,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { name } = req.params;
+      const { gender } = req.body;
+      if (!['male', 'female'].includes(gender)) return res.status(400).json({ error: 'Gender must be male or female' });
+      const { data, error } = await supabase.from('locations').update({ gender }).eq('name', name).select().single();
+      if (error) throw error;
+      res.json({ message: 'Location updated', data });
+    } catch (error) {
+      console.error('Error updating location:', error);
+      res.status(500).json({ error: 'Failed to update location' });
+    }
+  }
+);
+
+// Export all submissions as CSV
+app.get('/api/submissions/export/csv',
+  authenticate,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      let query = supabase
+        .from('submissions')
+        .select('*, responses(uuid, question_uuid, response_data, user_identifier)')
+        .order('created_at', { ascending: false });
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      // Fetch question titles
+      const allUuids = [...new Set((data || []).flatMap(sub => (sub.responses || []).map(r => r.question_uuid)))];
+      let titles = {};
+      if (allUuids.length) {
+        const { data: qData } = await supabase
+          .from('questions')
+          .select('uuid, title')
+          .in('uuid', allUuids);
+        (qData || []).forEach(q => titles[q.uuid] = q.title);
+      }
+
+      // Build CSV rows
+      const header = 'Datum;Locatie;Type;Vraag;Antwoord';
+      const rows = [];
+      for (const sub of (data || [])) {
+        const date = new Date(sub.created_at).toLocaleString('nl-NL');
+        const loc = sub.location || 'Onbekend';
+        const type = sub.survey_type || 'regular';
+        for (const r of (sub.responses || [])) {
+          const questionTitle = titles[r.question_uuid] || 'Onbekende vraag';
+          const answer = r.response_data?.label || r.response_data?.value || '';
+          // Escape quotes for CSV
+          const escapedAnswer = String(answer).replace(/"/g, '""');
+          const escapedQuestion = String(questionTitle).replace(/"/g, '""');
+          rows.push(`${date};${loc};${type};"${escapedQuestion}";"${escapedAnswer}"`);
+        }
+      }
+
+      const csv = '\uFEFF' + header + '\n' + rows.join('\n');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="antwoorden_export.csv"');
+      res.send(csv);
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      res.status(500).json({ error: 'Failed to export CSV' });
     }
   }
 );
@@ -688,18 +838,19 @@ app.post('/api/questions/reorder',
 );
 
 // Health check endpoint with database status
+let lastDbStatus = 'unknown';
 app.get('/api/health', async (req, res) => {
   try {
-    const dbConnected = await testConnection();
-    
+    const { error } = await supabase.from('questions').select('id', { head: true, count: 'estimated' }).limit(1);
+    lastDbStatus = error ? 'disconnected' : 'connected';
     res.json({
       status: 'OK',
       timestamp: new Date().toISOString(),
-      database: dbConnected ? 'connected' : 'disconnected',
+      database: lastDbStatus,
       environment: NODE_ENV,
       uptime: process.uptime()
     });
-  } catch (_error) {
+  } catch {
     res.status(503).json({
       status: 'ERROR',
       timestamp: new Date().toISOString(),

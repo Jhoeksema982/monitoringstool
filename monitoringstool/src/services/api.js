@@ -41,6 +41,26 @@ class ApiService {
     return response.json();
   }
 
+  async put(endpoint, data) {
+    const userToken = await getAccessToken();
+
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${userToken}`,
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`PUT error ${response.status}: ${text}`);
+    }
+
+    return response.json();
+  }
+
   async patch(endpoint, data) {
     const userToken = await getAccessToken();
 
@@ -97,7 +117,7 @@ export const questionsApi = {
 
   // UPDATE by UUID
   update: (uuid, updates) =>
-    apiService.patch(`/api/questions/${uuid}`, updates),
+    apiService.put(`/api/questions/${uuid}`, updates),
 
   // DELETE by UUID
   delete: (uuid) =>

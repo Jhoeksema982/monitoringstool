@@ -142,6 +142,43 @@ SET survey_type = 'regular'
 WHERE survey_type IS NULL OR survey_type = '';
 
 
+-- MIGRATIE: voeg type, options, age_group kolommen toe aan questions (indien niet aanwezig)
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'questions' and column_name = 'type'
+  ) then
+    alter table public.questions add column type varchar(50) not null default 'smiley';
+  end if;
+
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'questions' and column_name = 'options'
+  ) then
+    alter table public.questions add column options jsonb;
+  end if;
+
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'questions' and column_name = 'age_group'
+  ) then
+    alter table public.questions add column age_group varchar(20) not null default 'all';
+  end if;
+end $$;
+
+-- MIGRATIE: voeg gender kolom toe aan questions
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'questions' and column_name = 'gender'
+  ) then
+    alter table public.questions add column gender varchar(20) not null default 'all';
+    create index if not exists idx_questions_gender on public.questions (gender);
+  end if;
+end $$;
+
 -- Maak consent vraag aan als deze nog niet bestaat
 do $$
 declare
@@ -206,3 +243,21 @@ do $$ begin
     references public.submissions(uuid)
     on delete cascade;
 end $$;
+
+-- Locations tabel voor PI-beheer
+create table if not exists public.locations (
+  id bigserial primary key,
+  name varchar(100) not null unique,
+  gender varchar(20) not null default 'male',
+  created_at timestamptz not null default now()
+);
+
+-- Standaard locaties toevoegen (als ze nog niet bestaan)
+insert into public.locations (name, gender) values
+  ('Zaanstad', 'male'),
+  ('Veenhuizen', 'male'),
+  ('Almelo', 'male')
+on conflict (name) do nothing;
+
+-- Ververs PostgREST schema-cache zodat nieuwe kolommen direct zichtbaar zijn
+notify pgrst, 'reload schema';

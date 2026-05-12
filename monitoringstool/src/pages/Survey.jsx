@@ -1,10 +1,8 @@
 import { useState, useEffect } from "react";
 import QuestionDisplay from "../components/QuestionDisplay";
-import ConsentQuestion from "../components/ConsentQuestion";
 import StartScreen from "../components/StartScreen";
 import { questionsApi, responsesApi } from "../services/api";
 import { RATING_LABELS } from "../constants/ratings";
-import { CONSENT_QUESTION_UUID } from "../constants/consent";
 import groenImage from "../assets/images/groen.avif";
 
 export default function Survey() {
@@ -13,7 +11,6 @@ export default function Survey() {
     const [error, setError] = useState(null);
 
     const [answers, setAnswers] = useState({});
-    const [consent, setConsent] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState(null);
     const [submitted, setSubmitted] = useState(false);
@@ -22,6 +19,7 @@ export default function Survey() {
 
     const [mode, setMode] = useState("regular");
     const [location, setLocation] = useState(null);
+    const [parentGender, setParentGender] = useState("male");
     const [showStart, setShowStart] = useState(true);
     const [ageGroup, setAgeGroup] = useState("all");
     const [autoAdvance, setAutoAdvance] = useState(true);
@@ -32,10 +30,10 @@ export default function Survey() {
             try {
                 const state = JSON.parse(saved);
                 setAnswers(state.answers || {});
-                setConsent(state.consent);
                 setCurrentQuestionIndex(state.currentQuestionIndex || 0);
                 setMode(state.mode);
                 setLocation(state.location);
+                setParentGender(state.parentGender || "male");
                 setAgeGroup(state.ageGroup || "all");
                 if (state.location && state.mode) {
                     setShowStart(false);
@@ -52,20 +50,19 @@ export default function Survey() {
                 "survey_state",
                 JSON.stringify({
                     answers,
-                    consent,
                     currentQuestionIndex,
                     mode,
                     location,
+                    parentGender,
                     ageGroup,
                 }),
             );
         }
-    }, [answers, consent, currentQuestionIndex, mode, location, showStart, ageGroup]);
+    }, [answers, currentQuestionIndex, mode, location, showStart, ageGroup]);
 
     const clearSurveyState = () => {
         localStorage.removeItem("survey_state");
         setAnswers({});
-        setConsent(null);
         setCurrentQuestionIndex(0);
         setShowStart(true);
         setAgeGroup("all");
@@ -78,12 +75,15 @@ export default function Survey() {
     const loadQuestions = async () => {
         try {
             setLoading(true);
-            const response = await questionsApi.getAll();
+            const response = await questionsApi.getAll({ mode, gender: parentGender });
             const filteredQuestions = (response.data || []).filter(
                 (q) =>
                     q.uuid !== CONSENT_QUESTION_UUID &&
                     (q.age_group === "all" || q.age_group === ageGroup || !q.age_group),
-            );
+            ).map((q) => ({
+                ...q,
+                type: q.type || (ageGroup === "12_plus" ? "number" : "smiley"),
+            }));
             setQuestions(filteredQuestions);
             setError(null);
         } catch (err) {
@@ -117,51 +117,34 @@ export default function Survey() {
     const handleSubmit = async () => {
         setSubmitError(null);
 
-        if (!consent) {
-            setSubmitError("Beantwoord eerst de toestemmingsvraag.");
-            return;
-        }
-
-        if (consent === "nee") {
-            setSubmitError("Zonder toestemming kunnen we de vragenlijst niet invullen.");
-            return;
-        }
-
         const unanswered = questions.filter((q) => !answers[q.uuid]);
         if (unanswered.length > 0) {
             setSubmitError("Beantwoord alle vragen voordat je verstuurt.");
             return;
         }
 
-        const responses = [
-            {
-                question_uuid: CONSENT_QUESTION_UUID,
-                response_data: {
-                    value: consent,
-                    label: consent === "ja" ? "Ja" : "Nee",
-                },
-            },
-            ...questions.map((q) => ({
+        const responses = questions.map((q) => ({
                 question_uuid: q.uuid,
                 response_data: {
                     value: answers[q.uuid],
                     label: RATING_LABELS[answers[q.uuid]] || answers[q.uuid],
                 },
-            })),
-        ];
-
+            }));
         try {
             setSubmitting(true);
-            // STUUR NU OOK LOCATION MEE
-            await responsesApi.submit({
-                survey_type: mode,
-                location: location,
-                responses,
-            });
+            if (location === "demo") {
+                // Demo modus: niet opslaan, alleen simuleren
+                await new Promise(resolve => setTimeout(resolve, 500));
+            } else {
+                await responsesApi.submit({
+                    survey_type: mode,
+                    location: location,
+                    responses,
+                });
+            }
             setSubmitted(true);
             localStorage.removeItem("survey_state");
             setAnswers({});
-            setConsent(null);
             setCurrentQuestionIndex(0);
             setShowStart(true);
         } catch (e) {
@@ -179,8 +162,11 @@ export default function Survey() {
                     <img src={groenImage} alt="Bedankt" className="w-40 mx-auto mb-6 rounded-lg mt-8" />
                     <h2 className="text-4xl font-bold mb-4">Bedankt voor het invullen!</h2>
                     <p className="mb-6 text-xl text-gray-200">
-                        Je antwoorden zijn goed ontvangen voor locatie{" "}
-                        <span className="font-bold text-yellow-400">{location}</span>.
+                        {location === "demo"
+                            ? "Dit was een demo — er is niets opgeslagen."
+                            : <>Je antwoorden zijn goed ontvangen voor locatie{" "}
+                              <span className="font-bold text-yellow-400">{location}</span>.</>
+                        }
                     </p>
                     <button
                         className="bg-yellow-400 text-teal-900 font-semibold px-6 py-3 rounded-full hover:bg-yellow-300 transition"
@@ -200,57 +186,13 @@ export default function Survey() {
             return <div className="bg-red-600/80 text-white px-6 py-4 rounded-xl">{error}</div>;
         }
 
-        // STAP 0: TOESTEMMING
-        if (!consent) {
-            return (
-                <>
-                    <ConsentQuestion
-                        value={consent}
-                        onChange={(val) => {
-                            setConsent(val);
-                            if (val === "nee") {
-                                setSubmitError("Zonder toestemming kunnen we de vragenlijst niet invullen.");
-                            } else {
-                                setSubmitError(null);
-                                setCurrentQuestionIndex(0);
-                            }
-                        }}
-                    />
-                    {consent === "nee" && (
-                        <div className="bg-red-600/80 text-white px-6 py-3 rounded-xl">
-                            Zonder toestemming kunnen we de vragenlijst niet invullen.
-                        </div>
-                    )}
-                </>
-            );
-        }
-
-        if (consent === "nee") {
-            return (
-                <div className="flex flex-col items-center justify-center text-center p-6">
-                    <div className="bg-red-600/80 text-white px-6 py-4 rounded-xl mb-4">
-                        <h2 className="text-2xl font-bold mb-2">Geen toestemming</h2>
-                        <p>Vraag even aan je begeleider wat je nu moet doen.</p>
-                    </div>
-                    <button
-                        className="bg-yellow-400 text-teal-900 font-semibold px-6 py-3 rounded-full hover:bg-yellow-300 transition"
-                        onClick={() => {
-                            setConsent(null);
-                            setAnswers({});
-                        }}
-                    >
-                        Opnieuw proberen
-                    </button>
-                </div>
-            );
-        }
-
         if (questions.length === 0) {
             return <p>Er zijn nog geen vragen toegevoegd.</p>;
         }
 
         // DE VRAGEN ZELF
         const currentQ = questions[currentQuestionIndex];
+        if (!currentQ) return <p>Er zijn nog geen vragen toegevoegd.</p>;
         const hasAnsweredCurrent = answers[currentQ.uuid] !== undefined;
         const isLastQuestion = currentQuestionIndex === questions.length - 1;
 
@@ -261,7 +203,7 @@ export default function Survey() {
                         Locatie: <span className="font-semibold text-white">{location}</span>
                     </span>
                     <span className="text-teal-200 text-sm">
-                        {mode === "ouder_kind" ? "Ouder-Kind Dag" : "Regulier"}
+                        {mode === "ouder_kind" ? "Ouder-kind dag" : mode === "extra_vader_kind" ? "Ander ouder-kind moment" : "Regulier bezoek"}
                     </span>
                 </div>
 
@@ -272,6 +214,8 @@ export default function Survey() {
                     name={`question-${currentQ.uuid}`}
                     value={answers[currentQ.uuid] || null}
                     onChange={(val) => handleChange(currentQ.uuid, val)}
+                    parentGender={parentGender}
+                    ageGroup={ageGroup}
                 />
 
                 <div className="mt-8 flex flex-col sm:flex-row gap-4 w-full max-w-md justify-center">
@@ -310,10 +254,11 @@ export default function Survey() {
         <>
             {showStart ? (
                 <StartScreen
-                    onStart={(selectedMode, selectedLocation, selectedAgeGroup) => {
+                    onStart={(selectedMode, selectedLocation, selectedAgeGroup, selectedGender) => {
                         setMode(selectedMode);
                         setLocation(selectedLocation);
                         setAgeGroup(selectedAgeGroup);
+                        setParentGender(selectedGender || "male");
                         setShowStart(false);
                     }}
                 />

@@ -6,7 +6,7 @@ import PasswordGate from "./components/PasswordGate";
 import backgroundImage from "./assets/images/background2.jpeg";
 
 const backgroundStyle = {
-  backgroundImage: `linear-gradient(120deg, rgba(2, 102, 102, 0.9), rgba(2, 102, 102, 1.7)), url(${backgroundImage})`,
+  backgroundImage: `linear-gradient(120deg, rgba(2, 102, 102, 0.9), rgba(2, 102, 102, 1)), url(${backgroundImage})`,
   backgroundSize: "cover",
   backgroundPosition: "center",
   backgroundAttachment: "fixed",

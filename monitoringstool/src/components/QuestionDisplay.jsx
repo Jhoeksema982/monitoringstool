@@ -35,23 +35,31 @@ function SmileyDisplay({ question, value, onChange, index }) {
   );
 }
 
+const CIRCLE_COLORS = [
+  "bg-red-500",
+  "bg-orange-400",
+  "bg-yellow-400",
+  "bg-green-400",
+  "bg-green-600",
+];
+
 function NumberDisplay({ question, value, onChange, index }) {
   return (
-    <div className="flex justify-center gap-4 sm:gap-6">
+    <div className="flex justify-center gap-4 sm:gap-8">
       {numbers.map((item) => (
         <label key={item.key} className="flex flex-col items-center cursor-pointer">
           <button
             type="button"
             onClick={() => onChange?.(item.key)}
-            className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full font-bold text-xl sm:text-2xl transition-all shadow-lg hover:scale-110 active:scale-95 ${
+            className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full font-bold text-2xl sm:text-3xl transition-all shadow-lg hover:scale-110 active:scale-95 ${
               value === item.key
-                ? "bg-yellow-400 text-teal-900 scale-110"
-                : "bg-white/20 text-white hover:bg-white/30"
+                ? `${CIRCLE_COLORS[item.key - 1]} text-white scale-110 ring-4 ring-white`
+                : `${CIRCLE_COLORS[item.key - 1]} text-white opacity-60 hover:opacity-90`
             }`}
           >
             {item.key}
           </button>
-          <span className="font-semibold mt-2 text-white text-sm sm:text-base">
+          <span className="font-semibold mt-3 text-white text-base sm:text-lg">
             {item.label}
           </span>
         </label>
@@ -154,6 +162,17 @@ function MultipleChoiceDisplay({ question, value, onChange, index }) {
   );
 }
 
+function replaceParent(text, gender, ageGroup) {
+  if (!text) return text;
+  const isUnder12 = ageGroup === "under_12" || ageGroup === "all";
+  if (isUnder12) {
+    const parent = gender === "female" ? "mama" : "papa";
+    return text.replace(/\{parent\}/g, parent);
+  }
+  const parent = gender === "female" ? "moeder" : "vader";
+  return text.replace(/\{parent\}/g, parent);
+}
+
 export default function QuestionDisplay({
   question,
   index,
@@ -161,6 +180,8 @@ export default function QuestionDisplay({
   value,
   onChange,
   displayMode,
+  parentGender,
+  ageGroup,
 }) {
   const type = question?.type || displayMode || "smiley";
 
@@ -196,13 +217,16 @@ export default function QuestionDisplay({
     }
   };
 
+  const title = replaceParent(question.title, parentGender, ageGroup);
+  const description = replaceParent(question.description || helperText, parentGender, ageGroup);
+
   return (
     <div className="question-container w-full max-w-4xl text-center px-5 sm:px-10 py-5 bg-transparent rounded-[32px]">
       <p className="text-3xl font-semibold text-white mb-5">Vraag {index}</p>
       <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3 leading-snug">
-        {question.title}
+        {title}
       </h2>
-      <p className="text-lg sm:text-xl text-white/90 mb-10">{helperText}</p>
+      <p className="text-lg sm:text-xl text-white/90 mb-10">{description}</p>
       {renderDisplay()}
     </div>
   );
