@@ -215,6 +215,7 @@ end $$;
 create table if not exists public.submissions (
   uuid uuid primary key default gen_random_uuid(),
   survey_type varchar(50) default 'regular',
+  location varchar(100),
   created_at timestamptz default now()
 );
 
@@ -258,6 +259,18 @@ insert into public.locations (name, gender) values
   ('Veenhuizen', 'male'),
   ('Almelo', 'male')
 on conflict (name) do nothing;
+
+-- MIGRATIE: voeg position kolom toe aan questions (voor sorteer volgorde)
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'questions' and column_name = 'position'
+  ) then
+    alter table public.questions add column position integer not null default 0;
+    create index if not exists idx_questions_position on public.questions (position);
+  end if;
+end $$;
 
 -- Ververs PostgREST schema-cache zodat nieuwe kolommen direct zichtbaar zijn
 notify pgrst, 'reload schema';

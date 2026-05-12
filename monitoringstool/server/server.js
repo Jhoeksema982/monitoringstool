@@ -38,6 +38,7 @@ const optionalQuestionColumns = {
   options: false,
   age_group: false,
   gender: false,
+  position: false,
 };
 
 function questionSelectFields() {
@@ -47,6 +48,7 @@ function questionSelectFields() {
   if (optionalQuestionColumns.options) base.splice(7, 0, 'options');
   if (optionalQuestionColumns.age_group) base.splice(8, 0, 'age_group');
   if (optionalQuestionColumns.gender) base.splice(9, 0, 'gender');
+  if (optionalQuestionColumns.position) base.push('position');
   return base.join(', ');
 }
 
@@ -245,8 +247,11 @@ app.get('/api/questions',
         query = query.or(`title.ilike.${term},description.ilike.${term}`);
       }
 
+      if (!sortBy && optionalQuestionColumns.position) {
+        query = query.order('position', { ascending: true });
+      }
       const { column, ascending } = mapOrder(sortBy, sortOrder);
-      query = query.order(column, { ascending });
+      if (sortBy) query = query.order(column, { ascending });
 
       // Pagination (range is inclusive)
       query = query.range(offset, offset + limit - 1);
@@ -837,13 +842,14 @@ app.post('/api/questions/reorder',
   async (req, res) => {
     try {
       const order = Array.isArray(req.body?.order) ? req.body.order : [];
-      // In case we later add a position column, validate payload shape minimally
       const isValid = order.every(it => typeof it?.uuid === 'string');
       if (!isValid) {
         return res.status(400).json({ error: 'Invalid order payload' });
       }
-      // Currently not persisted (no position column). Acknowledge request.
-      return res.json({ message: 'Order accepted' });
+      for (const item of order) {
+        await supabase.from('questions').update({ position: item.position }).eq('uuid', item.uuid);
+      }
+      return res.json({ message: 'Order saved' });
     } catch (error) {
       console.error('Error reordering questions:', error);
       res.status(500).json({

@@ -52,12 +52,22 @@ app.get('/api/questions', async (req, res) => {
   try {
     const { page = 1, limit = 50 } = req.query;
     const offset = (Math.max(1, parseInt(page)) - 1) * Math.min(100, Math.max(1, parseInt(limit)));
-    const { data, error, count } = await supabase
+    let query = supabase
       .from('questions')
       .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
+      .order('position', { ascending: true, nullsFirst: false })
       .range(offset, offset + Math.min(100, Math.max(1, parseInt(limit))) - 1);
-    if (error) throw error;
+    const { data, error, count } = await query;
+    if (error) {
+      // position column might not exist yet - fallback to created_at order
+      const { data: data2, error: error2, count: count2 } = await supabase
+        .from('questions')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + Math.min(100, Math.max(1, parseInt(limit))) - 1);
+      if (error2) throw error2;
+      return res.json({ data: data2 || [], pagination: { page: parseInt(page), limit: parseInt(limit), total: count2 || 0 } });
+    }
     res.json({ data: data || [], pagination: { page: parseInt(page), limit: parseInt(limit), total: count || 0 } });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -117,7 +127,10 @@ app.post('/api/questions/reorder', authenticate, requireAdmin, async (req, res) 
     const order = Array.isArray(req.body?.order) ? req.body.order : [];
     const isValid = order.every(it => typeof it?.uuid === 'string');
     if (!isValid) return res.status(400).json({ error: 'Invalid order payload' });
-    res.json({ message: 'Order accepted' });
+    for (const item of order) {
+      await supabase.from('questions').update({ position: item.position }).eq('uuid', item.uuid);
+    }
+    res.json({ message: 'Order saved' });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
