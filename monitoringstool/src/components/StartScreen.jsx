@@ -57,26 +57,30 @@ const StartScreen = ({ onStart }) => {
         <div className="mb-6 relative">
           <button
             onClick={() => setOpen(!open)}
-            className="w-full p-3 rounded-lg bg-white text-gray-800 font-semibold flex items-center justify-between"
+            className={`w-full p-3 rounded-lg font-semibold flex items-center justify-between transition ${
+              selectedLocation
+                ? "bg-yellow-400 text-teal-900"
+                : "bg-teal-600 hover:bg-teal-500 text-white"
+            }`}
           >
             <span>{selectedLocation ? `PI ${selectedLocation}${selectedLocation !== "demo" ? ` (${getLocGender(selectedLocation) === "female" ? "vrouwelijk" : "mannelijk"})` : ""}` : "-- Kies een PI --"}</span>
             <svg className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
           </button>
           {open && (
-            <div className="absolute z-10 mt-1 w-full bg-white rounded-lg shadow-lg max-h-60 overflow-y-auto">
+            <div className="absolute z-10 mt-1 w-full bg-teal-700 rounded-lg shadow-lg max-h-60 overflow-y-auto border border-teal-500">
               <button
-                className="w-full text-left px-4 py-2.5 text-gray-800 font-semibold hover:bg-teal-100 transition"
+                className="w-full text-left px-4 py-2.5 text-white font-semibold hover:bg-teal-600 transition"
                 onClick={() => { setSelectedLocation(""); setOpen(false); setError(null); }}
               >-- Kies een PI --</button>
               {locations.map(loc => (
                 <button
                   key={loc.name}
-                  className={`w-full text-left px-4 py-2.5 font-semibold transition ${selectedLocation === loc.name ? "bg-teal-200 text-teal-900" : "text-gray-800 hover:bg-teal-100"}`}
+                  className={`w-full text-left px-4 py-2.5 font-semibold transition ${selectedLocation === loc.name ? "bg-yellow-400 text-teal-900" : "text-white hover:bg-teal-600"}`}
                   onClick={() => { setSelectedLocation(loc.name); setOpen(false); setError(null); }}
                 >PI {loc.name} ({loc.gender === "female" ? "vrouwelijk" : "mannelijk"})</button>
               ))}
               <button
-                className={`w-full text-left px-4 py-2.5 font-semibold transition ${selectedLocation === "demo" ? "bg-teal-200 text-teal-900" : "text-gray-800 hover:bg-teal-100"}`}
+                className={`w-full text-left px-4 py-2.5 font-semibold transition ${selectedLocation === "demo" ? "bg-yellow-400 text-teal-900" : "text-white hover:bg-teal-600"}`}
                 onClick={() => { setSelectedLocation("demo"); setOpen(false); setError(null); }}
               >Test / Demo (niks opslaan)</button>
             </div>
