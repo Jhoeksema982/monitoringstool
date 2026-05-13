@@ -250,6 +250,8 @@ app.get('/api/questions',
       if (sortBy) {
         const { column, ascending } = mapOrder(sortBy, sortOrder);
         query = query.order(column, { ascending });
+      } else if (optionalQuestionColumns.position) {
+        query = query.order('position', { ascending: true });
       } else {
         query = query.order('created_at', { ascending: false });
       }
@@ -333,6 +335,15 @@ app.post('/api/questions',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
+
+      if (optionalQuestionColumns.position) {
+        const { data: maxPos } = await supabase
+          .from('questions')
+          .select('position')
+          .order('position', { ascending: false })
+          .limit(1);
+        questionData.position = (maxPos?.[0]?.position ?? 0) + 1;
+      }
 
       // Strip columns that don't exist in the database
       for (const col of ['mode', 'type', 'options', 'age_group', 'gender']) {
@@ -836,21 +847,27 @@ app.post('/api/responses',
   }
 );
 
-// Reorder questions — stores order via created_at (no extra column needed)
+// Reorder questions — stores order via position column (or created_at fallback)
 app.post('/api/questions/reorder',
   authenticate,
   requireAdmin,
   async (req, res) => {
     try {
       const order = Array.isArray(req.body?.order) ? req.body.order : [];
-      const isValid = order.every(it => typeof it?.uuid === 'string');
+      const isValid = order.every(it => typeof it?.uuid === 'string' && typeof it?.position === 'number');
       if (!isValid) {
         return res.status(400).json({ error: 'Invalid order payload' });
       }
-      const now = Date.now();
-      for (const item of order) {
-        const timestamp = new Date(now + item.position * 1000).toISOString();
-        await supabase.from('questions').update({ created_at: timestamp }).eq('uuid', item.uuid);
+      if (optionalQuestionColumns.position) {
+        for (const item of order) {
+          await supabase.from('questions').update({ position: item.position }).eq('uuid', item.uuid);
+        }
+      } else {
+        const now = Date.now();
+        for (const item of order) {
+          const timestamp = new Date(now + item.position * 1000).toISOString();
+          await supabase.from('questions').update({ created_at: timestamp }).eq('uuid', item.uuid);
+        }
       }
       return res.json({ message: 'Order saved' });
     } catch (error) {

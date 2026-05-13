@@ -147,6 +147,18 @@ SET title = REPLACE(title, 'ruimte', 'plek'),
     description = REPLACE(description, 'ruimte', 'plek')
 WHERE title ILIKE '%ruimte%' OR description ILIKE '%ruimte%';
 
+-- Position column for question ordering
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'questions' and column_name = 'position'
+  ) then
+    alter table public.questions add column position integer not null default 0;
+    create index if not exists idx_questions_position on public.questions (position);
+  end if;
+end $$;
+
 -- Consent question
 do $$
 declare consent_uuid uuid := '00000000-0000-0000-0000-000000000001';

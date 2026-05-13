@@ -115,7 +115,7 @@ app.delete('/api/questions/:uuid', authenticate, requireAdmin, async (req, res) 
 app.post('/api/questions/reorder', authenticate, requireAdmin, async (req, res) => {
   try {
     const order = Array.isArray(req.body?.order) ? req.body.order : [];
-    const isValid = order.every(it => typeof it?.uuid === 'string');
+    const isValid = order.every(it => typeof it?.uuid === 'string' && typeof it?.position === 'number');
     if (!isValid) return res.status(400).json({ error: 'Invalid order payload' });
     const now = Date.now();
     for (const item of order) {
