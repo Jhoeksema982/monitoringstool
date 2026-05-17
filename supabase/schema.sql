@@ -1,11 +1,13 @@
 -- =========================
 -- Supabase schema (idempotent & order-safe)
+-- Dit script is veilig om meerdere keren te draaien en voert conditionele
+-- migraties uit als onderdelen ontbreken.
 -- =========================
 
 -- Extensions
 create extension if not exists "pgcrypto";
 
--- Enums
+-- Enums (veilig aanmaken)
 do $$ begin
   create type priority_level as enum ('low','medium','high');
 exception when duplicate_object then null; end $$;
@@ -14,7 +16,7 @@ do $$ begin
   create type question_status as enum ('active','inactive','archived');
 exception when duplicate_object then null; end $$;
 
--- Updated_at trigger function
+-- Updated_at trigger function (replace is safe)
 create or replace function set_updated_at()
 returns trigger as $$
 begin
@@ -23,17 +25,7 @@ begin
 end;
 $$ language plpgsql;
 
--- Question types enum
-do $$ begin
-  create type question_type as enum ('smiley','number','open','multiple_choice','scale','boolean');
-exception when duplicate_object then null; end $$;
-
--- Age group enum
-do $$ begin
-  create type age_group as enum ('all','under_12','12_plus');
-exception when duplicate_object then null; end $$;
-
--- Questions table
+-- Questions table (maak of laat bestaan)
 create table if not exists public.questions (
   id bigserial primary key,
   uuid uuid not null unique default gen_random_uuid(),
@@ -43,28 +35,59 @@ create table if not exists public.questions (
   priority priority_level not null default 'medium',
   status question_status not null default 'active',
   mode varchar(50) not null default 'regular',
-  type question_type not null default 'smiley',
-  options jsonb,
-  age_group age_group not null default 'all',
   created_by varchar(255),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
--- Indexes
-create index if not exists idx_questions_uuid on public.questions (uuid);
-create index if not exists idx_questions_category on public.questions (category);
-create index if not exists idx_questions_status on public.questions (status);
-create index if not exists idx_questions_priority on public.questions (priority);
-create index if not exists idx_questions_mode on public.questions (mode);
-create index if not exists idx_questions_type on public.questions (type);
-create index if not exists idx_questions_age_group on public.questions (age_group);
+-- Indexes for questions (maak indexes die niet afhankelijk zijn van conditionele kolommen)
+create index if not exists idx_questions_uuid
+  on public.questions (uuid);
 
--- Trigger
+create index if not exists idx_questions_category
+  on public.questions (category);
+
+create index if not exists idx_questions_status
+  on public.questions (status);
+
+create index if not exists idx_questions_priority
+  on public.questions (priority);
+
+create index if not exists idx_questions_created_at
+  on public.questions (created_at);
+
+-- Maak/refresh trigger (drop+create is safe)
 drop trigger if exists set_timestamp on public.questions;
 create trigger set_timestamp
 before update on public.questions
 for each row execute procedure set_updated_at();
+
+-- Veilige migratie: als de kolom `mode` nog niet bestaat, voeg toe en maak index.
+do $$
+begin
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'questions'
+      and column_name = 'mode'
+  ) then
+    alter table public.questions
+      add column mode varchar(50) not null default 'regular';
+  end if;
+
+  -- Maak de index alleen als de kolom bestaat (dit voorkomt errors bij vage migratie-states)
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'questions'
+      and column_name = 'mode'
+  ) then
+    execute 'create index if not exists idx_questions_mode on public.questions (mode)';
+  end if;
+end $$;
+
 
 -- Responses table
 create table if not exists public.responses (
@@ -72,29 +95,127 @@ create table if not exists public.responses (
   question_uuid uuid not null references public.questions(uuid) on delete cascade,
   response_data jsonb not null,
   user_identifier text,
-  submission_uuid uuid,
-  survey_type varchar(50) default 'regular'
+  submission_uuid uuid
 );
 
--- Indexes
-create index if not exists responses_question_uuid_idx on public.responses (question_uuid);
-create index if not exists idx_responses_submission_uuid on public.responses (submission_uuid);
-create index if not exists idx_responses_survey_type on public.responses (survey_type);
-
--- Foreign Key
-do $$ begin
-  if exists (select 1 from information_schema.table_constraints where constraint_name = 'fk_responses_submission') then
-    alter table public.responses drop constraint fk_responses_submission;
+-- MIGRATIE: voeg submission_uuid toe als kolom mist (idempotent)
+do $$
+begin
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'responses'
+      and column_name = 'submission_uuid'
+  ) then
+    alter table public.responses add column submission_uuid uuid;
   end if;
 end $$;
 
-alter table public.responses
-  add constraint fk_responses_submission
-  foreign key (submission_uuid)
-  references public.submissions(uuid)
-  on delete cascade;
+-- MIGRATIE: verwijder created_at als die per ongeluk bestaat
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'responses'
+      and column_name = 'created_at'
+  ) then
+    drop index if exists responses_created_at_idx;
+    alter table public.responses drop column created_at;
+  end if;
+end $$;
 
--- Submissions table
+-- Indexen voor responses
+create index if not exists responses_question_uuid_idx on public.responses (question_uuid);
+create index if not exists idx_responses_submission_uuid on public.responses (submission_uuid);
+
+
+ALTER TABLE public.responses 
+ADD COLUMN IF NOT EXISTS survey_type varchar(50) NOT NULL DEFAULT 'regular';
+
+CREATE INDEX IF NOT EXISTS idx_responses_survey_type 
+ON public.responses (survey_type);
+UPDATE public.responses 
+SET survey_type = 'regular' 
+WHERE survey_type IS NULL OR survey_type = '';
+
+
+-- MIGRATIE: voeg type, options, age_group kolommen toe aan questions (indien niet aanwezig)
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'questions' and column_name = 'type'
+  ) then
+    alter table public.questions add column type varchar(50) not null default 'smiley';
+  end if;
+
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'questions' and column_name = 'options'
+  ) then
+    alter table public.questions add column options jsonb;
+  end if;
+
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'questions' and column_name = 'age_group'
+  ) then
+    alter table public.questions add column age_group varchar(20) not null default 'all';
+  end if;
+end $$;
+
+-- MIGRATIE: voeg gender kolom toe aan questions
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'questions' and column_name = 'gender'
+  ) then
+    alter table public.questions add column gender varchar(20) not null default 'all';
+    create index if not exists idx_questions_gender on public.questions (gender);
+  end if;
+end $$;
+
+-- Maak consent vraag aan als deze nog niet bestaat
+do $$
+declare
+  consent_uuid uuid := '00000000-0000-0000-0000-000000000001';
+begin
+  if not exists (
+    select 1 from public.questions where uuid = consent_uuid
+  ) then
+    insert into public.questions (
+      uuid,
+      title,
+      description,
+      category,
+      priority,
+      status,
+      mode,
+      type,
+      age_group,
+      created_at,
+      updated_at
+    ) values (
+      consent_uuid,
+      'Geven de ouders/verzorgers toestemming voor het invullen van deze vragenlijst?',
+      'Selecteer hieronder uw antwoord',
+      'consent',
+      'high',
+      'active',
+      'regular',
+      'boolean',
+      'under_12',
+      now(),
+      now()
+    );
+  end if;
+end $$;
+
+-- 1. Zorg dat de tabel bestaat
 create table if not exists public.submissions (
   uuid uuid primary key default gen_random_uuid(),
   survey_type varchar(50) default 'regular',
@@ -102,52 +223,48 @@ create table if not exists public.submissions (
   created_at timestamptz default now()
 );
 
--- Admins table (for managing admin accounts)
-create table if not exists public.admins (
+-- 2. REPARATIE: Vul de submissions tabel met bestaande ID's uit responses
+-- Dit lost de error op door "missende" ouders aan te maken voor je bestaande data.
+insert into public.submissions (uuid, survey_type, created_at)
+select distinct submission_uuid, 'regular', now()
+from public.responses
+where submission_uuid is not null
+  and submission_uuid not in (select uuid from public.submissions);
+
+-- 3. Nu kunnen we de koppeling veilig maken
+do $$ begin
+  -- Verwijder de constraint als hij al (half) bestaat om conflicten te voorkomen
+  if exists (
+    select 1 from information_schema.table_constraints 
+    where constraint_name = 'fk_responses_submission'
+  ) then
+    alter table public.responses drop constraint fk_responses_submission;
+  end if;
+
+  -- Voeg de constraint opnieuw toe
+  alter table public.responses
+    add constraint fk_responses_submission
+    foreign key (submission_uuid)
+    references public.submissions(uuid)
+    on delete cascade;
+end $$;
+
+-- Locations tabel voor PI-beheer
+create table if not exists public.locations (
   id bigserial primary key,
-  uuid uuid not null unique default gen_random_uuid(),
-  email varchar(255) not null unique,
-  password_hash varchar(255) not null,
-  role varchar(50) default 'admin',
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  name varchar(100) not null unique,
+  gender varchar(20) not null default 'male',
+  created_at timestamptz not null default now()
 );
 
--- Add trigger for updated_at
-drop trigger if exists admins_updated_at on public.admins;
-create trigger admins_updated_at
-before update on public.admins
-for each row execute procedure set_updated_at();
+-- Standaard locaties toevoegen (als ze nog niet bestaan)
+insert into public.locations (name, gender) values
+  ('Zaanstad', 'male'),
+  ('Veenhuizen', 'male'),
+  ('Almelo', 'male')
+on conflict (name) do nothing;
 
--- Index for admins
-create index if not exists idx_admins_email on public.admins (email);
-
--- Trigger function to hash password before insert/update
-create or replace function hash_password()
-returns trigger as $$
-begin
-  if new.password_hash is not null and length(new.password_hash) < 60 then
-    new.password_hash := crypt(new.password_hash, gen_salt('bf'));
-  end if;
-  return new;
-end;
-$$ language plpgsql;
-
--- Add password hashing trigger
-drop trigger if exists hash_password_trigger on public.admins;
-create trigger hash_password_trigger
-before insert or update on public.admins
-for each row execute procedure hash_password();
-
--- ========================================
--- VRAAG UPDATE: Change 'ruimte' to 'plek'
--- ========================================
-UPDATE public.questions 
-SET title = REPLACE(title, 'ruimte', 'plek'),
-    description = REPLACE(description, 'ruimte', 'plek')
-WHERE title ILIKE '%ruimte%' OR description ILIKE '%ruimte%';
-
--- Position column for question ordering
+-- MIGRATIE: voeg position kolom toe aan questions (voor sorteer volgorde)
 do $$
 begin
   if not exists (
@@ -159,17 +276,5 @@ begin
   end if;
 end $$;
 
--- Consent question
-do $$
-declare consent_uuid uuid := '00000000-0000-0000-0000-000000000001';
-begin
-  if not exists (select 1 from public.questions where uuid = consent_uuid) then
-    insert into public.questions (uuid, title, description, category, priority, status, mode, created_at, updated_at)
-    values (
-      consent_uuid,
-      'Geven de ouders/verzorgers toestemming voor het invullen van deze vragenlijst?',
-      'Selecteer hieronder uw antwoord',
-      'consent', 'high', 'active', 'regular', now(), now()
-    );
-  end if;
-end $$;
+-- Ververs PostgREST schema-cache zodat nieuwe kolommen direct zichtbaar zijn
+notify pgrst, 'reload schema';

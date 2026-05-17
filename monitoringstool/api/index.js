@@ -55,7 +55,8 @@ app.get('/api/questions', async (req, res) => {
     const { data, error, count } = await supabase
       .from('questions')
       .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
+      .order('position', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
       .range(offset, offset + Math.min(100, Math.max(1, parseInt(limit))) - 1);
     if (error) throw error;
     res.json({ data: data || [], pagination: { page: parseInt(page), limit: parseInt(limit), total: count || 0 } });
@@ -66,7 +67,7 @@ app.get('/api/questions', async (req, res) => {
 
 app.post('/api/questions', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { title, description, category, priority, status, mode, type, options, age_group } = req.body;
+    const { title, description, category, priority, status, mode, type, options, age_group, gender } = req.body;
     const { data, error } = await supabase.from('questions').insert({
       uuid: uuidv4(),
       title,
@@ -78,6 +79,7 @@ app.post('/api/questions', authenticate, requireAdmin, async (req, res) => {
       type: type || 'smiley',
       options: options || null,
       age_group: age_group || 'all',
+      gender: gender || 'all',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }).select().single();
@@ -117,10 +119,8 @@ app.post('/api/questions/reorder', authenticate, requireAdmin, async (req, res) 
     const order = Array.isArray(req.body?.order) ? req.body.order : [];
     const isValid = order.every(it => typeof it?.uuid === 'string' && typeof it?.position === 'number');
     if (!isValid) return res.status(400).json({ error: 'Invalid order payload' });
-    const now = Date.now();
     for (const item of order) {
-      const timestamp = new Date(now + item.position * 1000).toISOString();
-      await supabase.from('questions').update({ created_at: timestamp }).eq('uuid', item.uuid);
+      await supabase.from('questions').update({ position: item.position }).eq('uuid', item.uuid);
     }
     res.json({ message: 'Order saved' });
   } catch (e) {
@@ -218,8 +218,24 @@ app.get('/api/submissions', authenticate, requireAdmin, async (req, res) => {
       .range(offset, offset + limit - 1);
     if (error) throw error;
 
+    // Enrich responses with question titles
+    const allUuids = [...new Set((data || []).flatMap(sub => (sub.responses || []).map(r => r.question_uuid)))];
+    let titles = {};
+    if (allUuids.length) {
+      const { data: qData } = await supabase.from('questions').select('uuid, title').in('uuid', allUuids);
+      titles = Object.fromEntries((qData || []).map(q => [q.uuid, q.title]));
+    }
+
+    const enriched = (data || []).map(sub => ({
+      ...sub,
+      responses: (sub.responses || []).map(r => ({
+        ...r,
+        question_title: titles[r.question_uuid] || 'Onbekende vraag'
+      }))
+    }));
+
     res.json({
-      data: data || [],
+      data: enriched,
       pagination: {
         page, limit,
         total: count || 0,

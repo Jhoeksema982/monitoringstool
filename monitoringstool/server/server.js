@@ -441,11 +441,8 @@ const { error } = await supabase
         .delete()
         .eq('uuid', uuid)
         .select('uuid')
-        .single();
+        .maybeSingle();
 
-      if (error && error.code === 'PGRST116') {
-        return res.status(404).json({ error: 'Question not found' });
-      }
       if (error) throw error;
 
       res.json({ message: 'Question deleted successfully' });

@@ -6,7 +6,8 @@ const TYPE_OPTIONS = [
   { value: "scale", label: "Schaal (1-10)" },
   { value: "boolean", label: "Ja/Nee" },
   { value: "open", label: "Open vraag" },
-  { value: "multiple_choice", label: "Meerkeuze" },
+  { value: "multiple_choice", label: "Meerkeuze (enkel)" },
+  { value: "multiple_select", label: "Meerkeuze (meerdere)" },
 ];
 
 const MODE_OPTIONS = [
@@ -40,7 +41,7 @@ export default function QuestionForm({ onAdd }) {
     if (!title.trim()) return;
 
     let parsedOptions = null;
-    if (type === "multiple_choice") {
+    if (type === "multiple_choice" || type === "multiple_select") {
       parsedOptions = options.split("\n").map((o) => o.trim()).filter(Boolean);
       if (parsedOptions.length < 2) {
         alert("Voer minimaal 2 opties in (elk op een nieuwe regel)");
@@ -147,7 +148,7 @@ export default function QuestionForm({ onAdd }) {
           </div>
         </div>
 
-        {type === "multiple_choice" && (
+        {(type === "multiple_choice" || type === "multiple_select") && (
           <div>
             <label className="block text-gray-300 text-sm mb-2">
               Opties (een per regel)*

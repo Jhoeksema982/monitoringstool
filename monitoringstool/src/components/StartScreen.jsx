@@ -46,7 +46,7 @@ const StartScreen = ({ onStart }) => {
         />
 
         <h1 className="text-2xl font-bold mb-4">
-          Hallo! Vertel ons wie je bent
+          Hallo!
         </h1>
 
         <p className="mb-6 text-gray-200">

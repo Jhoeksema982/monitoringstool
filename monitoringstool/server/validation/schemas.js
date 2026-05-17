@@ -55,10 +55,10 @@ export const questionSchema = Joi.object({
     }),
 
   type: Joi.string()
-    .valid('smiley', 'number', 'scale', 'boolean', 'open', 'multiple_choice')
+    .valid('smiley', 'number', 'scale', 'boolean', 'open', 'multiple_choice', 'multiple_select')
     .default('smiley')
     .messages({
-      'any.only': 'Type must be smiley, number, scale, boolean, open, or multiple_choice'
+      'any.only': 'Type must be smiley, number, scale, boolean, open, multiple_choice, or multiple_select'
     }),
 
   options: Joi.array()
@@ -150,10 +150,10 @@ export const questionUpdateSchema = Joi.object({
     }),
 
   type: Joi.string()
-    .valid('smiley', 'number', 'scale', 'boolean', 'open', 'multiple_choice')
+    .valid('smiley', 'number', 'scale', 'boolean', 'open', 'multiple_choice', 'multiple_select')
     .optional()
     .messages({
-      'any.only': 'Type must be one of: smiley, number, scale, boolean, open, multiple_choice'
+      'any.only': 'Type must be one of: smiley, number, scale, boolean, open, multiple_choice, multiple_select'
     }),
 
   options: Joi.array()
@@ -265,10 +265,10 @@ export const questionsQuerySchema = Joi.object({
     }),
     
   sortBy: Joi.string()
-    .valid('created_at', 'updated_at', 'title', 'priority')
-    .default('created_at')
+    .valid('created_at', 'updated_at', 'title', 'priority', 'position')
+    .optional()
     .messages({
-      'any.only': 'Sort by must be created_at, updated_at, title, or priority'
+      'any.only': 'Sort by must be created_at, updated_at, title, priority, or position'
     }),
     
   sortOrder: Joi.string()

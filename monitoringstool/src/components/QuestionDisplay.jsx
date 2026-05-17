@@ -51,10 +51,10 @@ function NumberDisplay({ question, value, onChange, index }) {
           <button
             type="button"
             onClick={() => onChange?.(item.key)}
-            className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full font-bold text-2xl sm:text-3xl transition-all shadow-lg hover:scale-110 active:scale-95 ${
+            className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full font-bold text-2xl sm:text-3xl transition-all shadow-lg hover:scale-110 active:scale-95 border-2 border-black ${
               value === item.key
                 ? `${CIRCLE_COLORS[item.key - 1]} text-white scale-110 ring-4 ring-white`
-                : `${CIRCLE_COLORS[item.key - 1]} text-white opacity-60 hover:opacity-90`
+                : `${CIRCLE_COLORS[item.key - 1]} text-white`
             }`}
           >
             {item.key}
@@ -162,10 +162,47 @@ function MultipleChoiceDisplay({ question, value, onChange, index }) {
   );
 }
 
+function MultipleSelectDisplay({ question, value, onChange, index }) {
+  const options = question?.options || [];
+  const selected = Array.isArray(value) ? value : [];
+  return (
+    <div className="flex flex-col gap-3 w-full max-w-2xl mx-auto">
+      {options.map((opt, i) => {
+        const isSelected = selected.includes(opt);
+        return (
+          <label
+            key={i}
+            className={`flex items-center gap-4 p-4 rounded-lg cursor-pointer transition-all ${
+              isSelected
+                ? "bg-yellow-400 text-teal-900"
+                : "bg-white/20 text-white hover:bg-white/30"
+            }`}
+          >
+            <input
+              type="checkbox"
+              name={`ms-${question?.uuid || index}`}
+              value={opt}
+              checked={isSelected}
+              onChange={() => {
+                if (isSelected) {
+                  onChange?.(selected.filter((v) => v !== opt));
+                } else {
+                  onChange?.([...selected, opt]);
+                }
+              }}
+              className="w-5 h-5 accent-teal-500"
+            />
+            <span className="font-semibold text-lg">{opt}</span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 function replaceParent(text, gender, ageGroup) {
   if (!text) return text;
-  const isUnder12 = ageGroup === "under_12" || ageGroup === "all";
-  if (isUnder12) {
+  if (ageGroup === "under_12") {
     const parent = gender === "female" ? "mama" : "papa";
     return text.replace(/\{parent\}/g, parent);
   }
@@ -190,6 +227,8 @@ export default function QuestionDisplay({
       ? "Geef je antwoord"
       : type === "multiple_choice"
       ? "Kies één optie"
+      : type === "multiple_select"
+      ? "Kies één of meerdere opties"
       : type === "boolean"
       ? "Kies ja of nee"
       : type === "scale"
@@ -212,6 +251,8 @@ export default function QuestionDisplay({
         return <OpenDisplay question={question} value={value} onChange={onChange} index={index} />;
       case "multiple_choice":
         return <MultipleChoiceDisplay question={question} value={value} onChange={onChange} index={index} />;
+      case "multiple_select":
+        return <MultipleSelectDisplay question={question} value={value} onChange={onChange} index={index} />;
       default:
         return <SmileyDisplay question={question} value={value} onChange={onChange} index={index} />;
     }

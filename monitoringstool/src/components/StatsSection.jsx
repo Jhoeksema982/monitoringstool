@@ -39,12 +39,12 @@ function resolveKey(value) {
 }
 
 // Values for weighted average calculation (1 = Worst, 5 = Best)
+// Supports smiley keys, number keys 1-5, scale keys 1-10, and boolean
 const WEIGHTS = {
-  rood: 1,
-  beige: 2,
-  geel: 3,
-  lichtgroen: 4,
-  groen: 5,
+  rood: 1, beige: 2, geel: 3, lichtgroen: 4, groen: 5,
+  1: 1, 2: 2, 3: 3, 4: 4, 5: 5,
+  6: 6, 7: 7, 8: 8, 9: 9, 10: 10,
+  yes: 5, no: 1,
 };
 
 const TABS = [

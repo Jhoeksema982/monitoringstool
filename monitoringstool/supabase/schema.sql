@@ -195,6 +195,8 @@ begin
       priority,
       status,
       mode,
+      type,
+      age_group,
       created_at,
       updated_at
     ) values (
@@ -205,6 +207,8 @@ begin
       'high',
       'active',
       'regular',
+      'boolean',
+      'under_12',
       now(),
       now()
     );

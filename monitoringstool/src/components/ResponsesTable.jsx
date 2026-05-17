@@ -108,9 +108,9 @@ export default function ResponsesTable({
                 </thead>
                 <tbody>
                   {responsesLoading ? (
-                    <tr><td className="px-4 py-3" colSpan={5}>Laden...</td></tr>
+                    <tr><td className="px-4 py-3" colSpan={4}>Laden...</td></tr>
                   ) : !hasItems ? (
-                    <tr><td className="px-4 py-3" colSpan={5}>Geen antwoorden gevonden.</td></tr>
+                    <tr><td className="px-4 py-3" colSpan={4}>Geen antwoorden gevonden.</td></tr>
                   ) : (
                     items.flatMap((sub) => {
                       const isOpen = !!expandedGroups[sub.uuid];
@@ -141,7 +141,7 @@ export default function ResponsesTable({
                       if (isOpen) {
                         rows.push(
                           <tr key={`details-${sub.uuid}`} className="border-t border-teal-700">
-                            <td className="px-4 py-3 bg-teal-750" colSpan={5}>
+                            <td className="px-4 py-3 bg-teal-750" colSpan={4}>
                               <div className="divide-y divide-teal-600">
                                 {cleanResponses.map((r, idx) => (
                                   <div key={r.uuid || idx} className="py-2 flex flex-col gap-1 md:flex-row md:items-start md:gap-4">

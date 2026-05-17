@@ -1,9 +1,5 @@
-import { useState, useEffect } from "react";
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { useState, useEffect, useCallback } from "react";
 import QuestionForm from "../components/QuestionForm";
-import QuestionTypeModal from "../components/QuestionTypeModal";
 import StatsSection from "../components/StatsSection";
 import ResponsesTable from "../components/ResponsesTable";
 import { questionsApi, responsesApi } from "../services/api";
@@ -11,46 +7,21 @@ import { getSession, signInWithEmailPassword, signOut } from "../services/auth";
 import { CONSENT_QUESTION_UUID } from "../constants/consent";
 import { getLocations, createLocation, deleteLocation, updateLocation } from "../constants/locations";
 
-function SortableQuestionItem({ question, onDelete, onEditClick, onSaveEdit, isEditing, editForm, setEditForm }) {
-    const { listeners, setNodeRef, transform, transition, setActivatorNodeRef } = useSortable({
-        id: question.uuid,
-        disabled: isEditing,
-    });
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-    };
-
-    useEffect(() => {
-        document.title = "Monitoringstool Admin - Vragen beheren";
-    }, []);
-
+function QuestionItem({ question, onDelete, onEditClick, onSaveEdit, isEditing, editForm, setEditForm, onPositionChange }) {
     return (
-        <li ref={setNodeRef} style={style} className="bg-teal-700 p-4 rounded-lg flex justify-between items-center">
+        <li className="bg-teal-700 p-4 rounded-lg flex items-center gap-3">
+            <input
+                type="number"
+                min="0"
+                className="w-14 p-1 rounded text-gray-900 text-center text-sm"
+                value={question.position ?? 0}
+                onChange={(e) => onPositionChange(question.uuid, parseInt(e.target.value) || 0)}
+                disabled={isEditing}
+                title="Positie (volgorde)"
+            />
             <div className="flex items-start gap-3 flex-1">
-                {!isEditing && (
-                    <button
-                        ref={setActivatorNodeRef}
-                        className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-teal-650/40"
-                        aria-label="Sleep om te sorteren"
-                        title="Sleep om te sorteren"
-                        {...listeners}
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="20"
-                            height="20"
-                            fill="currentColor"
-                            className="text-gray-200"
-                            viewBox="0 0 16 16"
-                        >
-                            <path d="M2 3.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM8 3.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM14 3.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM14 3.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" />
-                        </svg>
-                    </button>
-                )}
-
                 {isEditing ? (
-                    <div className="space-y-2">
+                    <div className="space-y-2 w-full">
                         <input
                             className="w-full p-2 rounded text-gray-900"
                             placeholder="Titel"
@@ -100,7 +71,8 @@ function SortableQuestionItem({ question, onDelete, onEditClick, onSaveEdit, isE
                                 <option value="scale">Schaal (1-10)</option>
                                 <option value="boolean">Ja/Nee</option>
                                 <option value="open">Open vraag</option>
-                                <option value="multiple_choice">Meerkeuze</option>
+                                <option value="multiple_choice">Meerkeuze (enkel)</option>
+                                <option value="multiple_select">Meerkeuze (meerdere)</option>
                             </select>
                         </div>
                         <div className="flex gap-2">
@@ -126,7 +98,7 @@ function SortableQuestionItem({ question, onDelete, onEditClick, onSaveEdit, isE
                         <div className="text-xs text-gray-400">
                             Gebruik <code>{`{parent}`}</code> voor &quot;papa&quot;/&quot;mama&quot;
                         </div>
-                        {editForm.type === "multiple_choice" && (
+                        {(editForm.type === "multiple_choice" || editForm.type === "multiple_select") && (
                             <textarea
                                 className="w-full p-2 rounded text-gray-900"
                                 placeholder="Opties (één per regel)"
@@ -255,6 +227,7 @@ export default function Admin() {
     }, []);
 
     useEffect(() => {
+        document.title = "Monitoringstool Admin - Vragen beheren";
         (async () => {
             try {
                 const session = await getSession();
@@ -395,21 +368,12 @@ export default function Admin() {
         alert(`Wachtwoord voor ${email} gewijzigd!`);
     };
 
-    // DnD sensors
-    const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: { distance: 6 },
-        }),
-    );
-
-    const handleDragEnd = (event) => {
-        const { active, over } = event;
-        if (!over || active.id === over.id) return;
+    const updatePosition = (uuid, newPosition) => {
         setQuestions((prev) => {
-            const oldIndex = prev.findIndex((q) => q.uuid === active.id);
-            const newIndex = prev.findIndex((q) => q.uuid === over.id);
-            if (oldIndex === -1 || newIndex === -1) return prev;
-            return arrayMove(prev, oldIndex, newIndex);
+            const updated = prev.map((q) =>
+                q.uuid === uuid ? { ...q, position: newPosition } : q
+            );
+            return [...updated].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
         });
     };
 
@@ -431,7 +395,9 @@ export default function Admin() {
     const addQuestion = async (question) => {
         try {
             const response = await questionsApi.create(question);
-            setQuestions((prev) => [...prev, response.data]);
+            setQuestions((prev) =>
+                [...prev, response.data].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+            );
             setError(null);
         } catch (err) {
             setError("Failed to add question");
@@ -481,6 +447,8 @@ export default function Admin() {
         loadStats();
         loadGlobalStats();
     };
+
+    const fetchLocationStats = useCallback(async (loc) => (await responsesApi.stats({ location: loc })).data, []);
 
     if (loading) {
         return (
@@ -847,7 +815,7 @@ export default function Admin() {
                                 try {
                                     setSavingOrder(true);
                                     setReorderError(null);
-                                    const order = questions.map((q, i) => ({ uuid: q.uuid, position: i + 1 }));
+                                    const order = questions.map((q) => ({ uuid: q.uuid, position: q.position ?? 0 }));
                                     await questionsApi.reorder(order);
                                 } catch (e) {
                                     console.error("Reorder failed", e);
@@ -861,73 +829,70 @@ export default function Admin() {
                         </button>
                     </div>
                 </div>
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                    <SortableContext items={questions.map((q) => q.uuid)} strategy={verticalListSortingStrategy}>
-                        <ul className="space-y-4">
-                            {questions
-                                .filter((q) => filterGender === "all" || q.gender === filterGender || q.gender === "all")
-                                .map((q) => (
-                                <SortableQuestionItem
-                                    key={q.uuid}
-                                    question={q}
-                                    onDelete={deleteQuestion}
-                                    onEditClick={(uuid) => {
-                                        if (!uuid) {
-                                            setEditingUuid(null);
-                                            return;
-                                        }
-                                        setEditingUuid(uuid);
-                                        const q = questions.find((q) => q.uuid === uuid);
-                                        setEditForm({
-                                            title: q?.title || "",
-                                            description: q?.description || "",
-                                            category: q?.category || "",
-                                            priority: q?.priority || "medium",
-                                            status: q?.status || "active",
-                                            type: q?.type || "smiley",
-                                            options: q?.options || null,
-                                            age_group: q?.age_group || "all",
-                                            mode: q?.mode || "regular",
-                                        });
-                                    }}
-                                    onSaveEdit={async () => {
-                                        try {
-                                            const payload = {
-                                                title: editForm.title,
-                                                description: editForm.description,
-                                                category: editForm.category,
-                                                priority: editForm.priority,
-                                                status: editForm.status,
-                                                type: editForm.type,
-                                                options: editForm.type === "multiple_choice" ? editForm.options : null,
-                                                age_group: editForm.age_group,
-                                                mode: editForm.mode,
-                                            };
-                                            const result = await questionsApi.update(q.uuid, payload);
-                                            const updated = result?.data || payload;
-                                            setQuestions((prev) =>
-                                                prev.map((it) => (it.uuid === q.uuid ? { ...it, ...updated } : it)),
-                                            );
-                                            setEditingUuid(null);
-                                        } catch (e) {
-                                            console.error("Update failed", e);
-                                            setUpdateError("Vraag bijwerken mislukt");
-                                        }
-                                    }}
-                                    isEditing={editingUuid === q.uuid}
-                                    editForm={editForm}
-                                    setEditForm={setEditForm}
-                                />
-                            ))}
-                        </ul>
-                    </SortableContext>
-                </DndContext>
+                <ul className="space-y-4">
+                    {questions
+                        .filter((q) => filterGender === "all" || q.gender === filterGender || q.gender === "all")
+                        .map((q) => (
+                        <QuestionItem
+                            key={q.uuid}
+                            question={q}
+                            onDelete={deleteQuestion}
+                            onPositionChange={updatePosition}
+                            onEditClick={(uuid) => {
+                                if (!uuid) {
+                                    setEditingUuid(null);
+                                    return;
+                                }
+                                setEditingUuid(uuid);
+                                const q = questions.find((q) => q.uuid === uuid);
+                                setEditForm({
+                                    title: q?.title || "",
+                                    description: q?.description || "",
+                                    category: q?.category || "",
+                                    priority: q?.priority || "medium",
+                                    status: q?.status || "active",
+                                    type: q?.type || "smiley",
+                                    options: q?.options || null,
+                                    age_group: q?.age_group || "all",
+                                    mode: q?.mode || "regular",
+                                });
+                            }}
+                            onSaveEdit={async () => {
+                                try {
+                                    const payload = {
+                                        title: editForm.title,
+                                        description: editForm.description,
+                                        category: editForm.category,
+                                        priority: editForm.priority,
+                                        status: editForm.status,
+                                        type: editForm.type,
+                                        options: editForm.type === "multiple_choice" || editForm.type === "multiple_select" ? editForm.options : null,
+                                        age_group: editForm.age_group,
+                                        mode: editForm.mode,
+                                    };
+                                    const result = await questionsApi.update(q.uuid, payload);
+                                    const updated = result?.data || payload;
+                                    setQuestions((prev) =>
+                                        prev.map((it) => (it.uuid === q.uuid ? { ...it, ...updated } : it)),
+                                    );
+                                    setEditingUuid(null);
+                                } catch (e) {
+                                    console.error("Update failed", e);
+                                    setUpdateError("Vraag bijwerken mislukt");
+                                }
+                            }}
+                            isEditing={editingUuid === q.uuid}
+                            editForm={editForm}
+                            setEditForm={setEditForm}
+                        />
+                    ))}
+                </ul>
             </div>
 
             <StatsSection
                 statsData={statsData}
                 globalStats={globalStats}
-                fetchLocationStats={async (loc) => (await responsesApi.stats({ location: loc })).data}
+                fetchLocationStats={fetchLocationStats}
                 statsLoading={statsLoading}
                 statsError={statsError}
                 onRefresh={handleRefreshStats}
