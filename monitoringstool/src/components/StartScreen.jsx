@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { getLocations, getGender } from "../constants/locations";
+import { Mars, Venus } from "lucide-react";
+import { getLocations } from "../constants/locations";
 
 const StartScreen = ({ onStart }) => {
   const [selectedLocation, setSelectedLocation] = useState("");
@@ -32,8 +33,8 @@ const StartScreen = ({ onStart }) => {
     onStart(mode, selectedLocation, ageGroup, getLocGender(selectedLocation));
   };
 
-  const genderLabel = selectedLocation && selectedLocation !== "demo"
-    ? (getLocGender(selectedLocation) === "female" ? "vrouwelijk" : "mannelijk")
+  const genderIcon = selectedLocation && selectedLocation !== "demo"
+    ? (getLocGender(selectedLocation) === "female" ? <Venus className="inline w-4 h-4 text-pink-300" /> : <Mars className="inline w-4 h-4 text-blue-300" />)
     : null;
 
   return (
@@ -63,7 +64,7 @@ const StartScreen = ({ onStart }) => {
                 : "bg-teal-600 hover:bg-teal-500 text-white"
             }`}
           >
-            <span>{selectedLocation ? `PI ${selectedLocation}${selectedLocation !== "demo" ? ` (${getLocGender(selectedLocation) === "female" ? "vrouwelijk" : "mannelijk"})` : ""}` : "-- Kies een PI --"}</span>
+            <span>{selectedLocation ? <>PI {selectedLocation}{selectedLocation !== "demo" ? <> {getLocGender(selectedLocation) === "female" ? <Venus className="inline w-5 h-5 text-pink-300 ml-1" /> : <Mars className="inline w-5 h-5 text-blue-300 ml-1" />}</> : ""}</> : "-- Kies een PI --"}</span>
             <svg className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
           </button>
           {open && (
@@ -77,7 +78,7 @@ const StartScreen = ({ onStart }) => {
                   key={loc.name}
                   className={`w-full text-left px-4 py-2.5 font-semibold transition ${selectedLocation === loc.name ? "bg-yellow-400 text-teal-900" : "text-white hover:bg-teal-600"}`}
                   onClick={() => { setSelectedLocation(loc.name); setOpen(false); setError(null); }}
-                >PI {loc.name} ({loc.gender === "female" ? "vrouwelijk" : "mannelijk"})</button>
+                >PI {loc.name} {loc.gender === "female" ? <Venus className="inline w-4 h-4 text-pink-300" /> : <Mars className="inline w-4 h-4 text-blue-300" />}</button>
               ))}
               <button
                 className={`w-full text-left px-4 py-2.5 font-semibold transition ${selectedLocation === "demo" ? "bg-yellow-400 text-teal-900" : "text-white hover:bg-teal-600"}`}
@@ -85,8 +86,8 @@ const StartScreen = ({ onStart }) => {
               >Test / Demo (niks opslaan)</button>
             </div>
           )}
-          {genderLabel && (
-            <p className="text-sm text-gray-300 mt-1">Locatie: {genderLabel}</p>
+          {genderIcon && (
+            <p className="text-sm text-gray-300 mt-1">Locatie: {genderIcon}</p>
           )}
         </div>
 
@@ -129,11 +130,6 @@ const StartScreen = ({ onStart }) => {
           </p>
         )}
 
-        <div className="mt-8 flex flex-wrap gap-4 justify-center text-sm">
-          <a href="/downloads/snelstartflyer.pdf" className="text-teal-300 hover:text-white underline" target="_blank" rel="noopener noreferrer">Snelstartflyer</a>
-          <a href="/downloads/handleiding.pdf" className="text-teal-300 hover:text-white underline" target="_blank" rel="noopener noreferrer">Handleiding</a>
-        </div>
-
         <p className="mb-2 text-white font-bold text-lg">Gelegenheid</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <button
@@ -156,6 +152,11 @@ const StartScreen = ({ onStart }) => {
           >
             Ander ouder-kind moment
           </button>
+        </div>
+
+        <div className="mt-10 flex flex-wrap gap-4 justify-center text-sm">
+          <a href="/downloads/snelstartflyer.pdf" className="text-teal-300 hover:text-white underline" target="_blank" rel="noopener noreferrer">Snel-van-start</a>
+          <a href="/downloads/handleiding.pdf" className="text-teal-300 hover:text-white underline" target="_blank" rel="noopener noreferrer">Handleiding</a>
         </div>
       </div>
     </div>

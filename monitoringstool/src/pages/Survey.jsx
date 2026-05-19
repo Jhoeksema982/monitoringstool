@@ -74,6 +74,7 @@ export default function Survey() {
         setAgeGroup("all");
         setParentGender("male");
         setConsentDenied(false);
+        setSubmitted(false);
     };
 
     useEffect(() => {
@@ -108,7 +109,7 @@ export default function Survey() {
 
     const handleChange = (questionUuid, value) => {
         setAnswers((prev) => ({ ...prev, [questionUuid]: value }));
-        if (questionUuid === CONSENT_QUESTION_UUID && value === "no") {
+        if (questionUuid === CONSENT_QUESTION_UUID && (value === "no" || value === "liever_niet")) {
             setConsentDenied(true);
             return;
         }
@@ -176,7 +177,6 @@ export default function Survey() {
             localStorage.removeItem("survey_state");
             setAnswers({});
             setCurrentQuestionIndex(0);
-            setShowStart(true);
         } catch (e) {
             console.error(e);
             setSubmitError("Versturen mislukt. Probeer het opnieuw.");

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Mars, Venus } from "lucide-react";
 import QuestionForm from "../components/QuestionForm";
 import StatsSection from "../components/StatsSection";
 import ResponsesTable from "../components/ResponsesTable";
@@ -118,7 +119,7 @@ function QuestionItem({ question, onDelete, onEditClick, onSaveEdit, isEditing, 
                             {question.category} | {question.priority} | {question.status} | {question.type || "smiley"} |{" "}
                             {question.age_group || "all"}
                             {question.gender && <span className={`ml-1 font-semibold ${question.gender === "female" ? "text-pink-300" : "text-blue-300"}`}>
-                                [{question.gender === "female" ? "Vrouw" : question.gender === "male" ? "Man" : "Alle"}]
+                                {question.gender === "female" ? <Venus className="inline w-4 h-4" /> : question.gender === "male" ? <Mars className="inline w-4 h-4" /> : "Alle"}
                             </span>}
                         </div>
                     </>
@@ -707,7 +708,7 @@ export default function Admin() {
                   {piList.map((pi, idx) => (
                   <div key={idx} className="flex items-center justify-between bg-teal-600 p-2 rounded">
                     <span className="text-sm">
-                      PI {pi.name} <span className="text-gray-300">({pi.gender === "female" ? "vrouwelijk" : "mannelijk"})</span>
+                      PI {pi.name} <span className="text-gray-300">{pi.gender === "female" ? <Venus className="inline w-4 h-4 text-pink-300" /> : <Mars className="inline w-4 h-4 text-blue-300" />}</span>
                     </span>
                     <div className="flex gap-2">
                       <button
@@ -756,8 +757,8 @@ export default function Admin() {
                   onChange={(e) => setNewPiGender(e.target.value)}
                   className="p-2 rounded text-gray-800 text-sm"
                 >
-                  <option value="male">Mannelijk</option>
-                  <option value="female">Vrouwelijk</option>
+                  <option value="male"><Mars className="inline w-4 h-4" /> Mannelijk</option>
+                  <option value="female"><Venus className="inline w-4 h-4" /> Vrouwelijk</option>
                 </select>
                 <button
                   className="bg-green-500 hover:bg-green-600 px-3 py-2 rounded font-semibold text-sm whitespace-nowrap"
@@ -791,10 +792,10 @@ export default function Admin() {
                     <div className="flex gap-2">
                         <div className="flex gap-1 bg-teal-800 rounded-lg p-1">
                             {[
-                                { value: "all", label: "Alle" },
-                                { value: "male", label: "Mannen" },
-                                { value: "female", label: "Vrouwen" },
-                            ].map((opt) => (
+                                { value: "all", label: "Alle", icon: null },
+                                { value: "male", label: "Mannen", icon: Mars },
+                                { value: "female", label: "Vrouwen", icon: Venus },
+                            ].map((opt) => { const Icon = opt.icon; return (
                                 <button
                                     key={opt.value}
                                     onClick={() => setFilterGender(opt.value)}
@@ -804,9 +805,10 @@ export default function Admin() {
                                             : "text-gray-300 hover:text-white"
                                     }`}
                                 >
-                                    {opt.label}
+                                    {Icon && <Icon className="inline w-4 h-4 mr-1" />}{opt.label}
                                 </button>
-                            ))}
+                            );
+                        })}
                         </div>
                         <button
                             className="bg-teal-600 hover:bg-teal-500 px-3 py-1 rounded disabled:opacity-50 text-sm"

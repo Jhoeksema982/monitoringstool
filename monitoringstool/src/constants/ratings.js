@@ -32,7 +32,10 @@ export const booleanOptions = [
     { key: "no", label: "Nee" },
 ];
 
-export const RATING_LABELS = Object.fromEntries(smileys.map((s) => [s.key, s.label]));
+export const RATING_LABELS = {
+  ...Object.fromEntries(smileys.map((s) => [s.key, s.label])),
+  liever_niet: "Zeg ik liever niet",
+};
 
 export const QUESTION_TYPES = [
     { value: "smiley", label: "Smileys", description: "Kies een smiley" },
