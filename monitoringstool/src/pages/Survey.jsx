@@ -46,7 +46,7 @@ export default function Survey() {
             } catch {}
         }
 
-        document.title = "Vragenlijst - Monitoringstool";
+        document.title = "Vragenlijst - Kinderenquête";
     }, []);
 
     useEffect(() => {

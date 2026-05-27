@@ -228,7 +228,7 @@ export default function Admin() {
     }, []);
 
     useEffect(() => {
-        document.title = "Monitoringstool Admin - Vragen beheren";
+        document.title = "Kinderenquête Admin - Vragen beheren";
         (async () => {
             try {
                 const session = await getSession();

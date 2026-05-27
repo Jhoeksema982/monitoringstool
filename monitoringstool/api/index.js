@@ -347,7 +347,7 @@ app.delete('/api/locations/:name', authenticate, requireAdmin, async (req, res) 
 });
 
 app.get('/api', (req, res) => {
-  res.json({ message: 'Monitoringstool API', version: '1.0' });
+  res.json({ message: 'Kinderenquête API', version: '1.0' });
 });
 
 app.use('*', (req, res) => {
